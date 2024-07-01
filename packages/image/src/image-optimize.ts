@@ -92,6 +92,8 @@ export type ImageLoader = (
         quality: number;
         src: string;
         format?: "auto";
+        height?: number;
+        fit?: "pad";
       }
     | { src: string; format: "raw" }
 ) => string;
@@ -246,6 +248,7 @@ export const getImageAttributes = (props: {
     }
   | undefined => {
   const width = getInt(props.width);
+
   const quality = Math.max(
     Math.min(getInt(props.quality) ?? DEFAULT_QUALITY, 100),
     0

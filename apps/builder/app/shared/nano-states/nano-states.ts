@@ -6,10 +6,8 @@ import type { AuthPermit } from "@webstudio-is/trpc-interface/index.server";
 import type { ItemDropTarget, Placement } from "@webstudio-is/design-system";
 import type {
   Assets,
-  DataSource,
   DataSources,
   Instance,
-  Page,
   Prop,
   Props,
   Resource,
@@ -18,7 +16,6 @@ import type {
   StyleSource,
   StyleSources,
   StyleSourceSelections,
-  System,
 } from "@webstudio-is/sdk";
 import type { Style } from "@webstudio-is/css-engine";
 import type { Project } from "@webstudio-is/project";
@@ -32,6 +29,8 @@ import type { htmlTags as HtmlTags } from "html-tags";
 import { $instances, $selectedInstanceSelector } from "./instances";
 import { $selectedPage } from "./pages";
 import type { UnitSizes } from "~/builder/features/style-panel/shared/css-value-input/convert-units";
+import type { Simplify } from "type-fest";
+import type { AssetType } from "@webstudio-is/asset-uploader";
 
 export const $project = atom<Project | undefined>();
 
@@ -57,32 +56,13 @@ export const $rootInstance = computed(
 );
 
 export const $dataSources = atom<DataSources>(new Map());
-export const $dataSourceVariables = atom<Map<DataSource["id"], unknown>>(
-  new Map()
-);
-
-export const updateSystem = (page: Page, update: Partial<System>) => {
-  const dataSourceVariables = new Map($dataSourceVariables.get());
-  const system = dataSourceVariables.get(page.systemDataSourceId) as
-    | undefined
-    | System;
-
-  const newSystem: System = {
-    search: {},
-    params: {},
-    // This value seems like doesn't matter
-    origin: "",
-    ...system,
-    ...update,
-  };
-  dataSourceVariables.set(page.systemDataSourceId, newSystem);
-  $dataSourceVariables.set(dataSourceVariables);
-};
 
 export const $resources = atom(new Map<Resource["id"], Resource>());
-export const $resourceValues = atom(new Map<Resource["id"], unknown>());
 
 export const $props = atom<Props>(new Map());
+
+export const $memoryProps = atom<Map<string, Props>>(new Map());
+
 export const $propsIndex = computed($props, (props) => {
   const propsByInstanceId = new Map<Instance["id"], Prop[]>();
   for (const prop of props.values()) {
@@ -178,6 +158,26 @@ export const $stylesIndex = computed(
 );
 
 export const $assets = atom<Assets>(new Map());
+
+export type UploadingFileData = Simplify<
+  {
+    // common props
+    assetId: string;
+    type: AssetType;
+    objectURL: string;
+  } & (
+    | {
+        source: "file";
+        file: File;
+      }
+    | {
+        source: "url";
+        url: string;
+      }
+  )
+>;
+
+export const $uploadingFilesDataStore = atom<UploadingFileData[]>([]);
 
 export const $selectedInstanceBrowserStyle = atom<undefined | Style>();
 
@@ -356,5 +356,3 @@ export const $dragAndDropState = atom<DragAndDropState>({
 });
 
 export const $marketplaceProduct = atom<undefined | MarketplaceProduct>();
-
-export const $inspectorLastInputTime = atom<number>(0);

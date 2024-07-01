@@ -15,6 +15,7 @@ import {
   handleNumericInputArrowKeys,
   theme,
   Flex,
+  styled,
 } from "@webstudio-is/design-system";
 import type {
   KeywordValue,
@@ -319,12 +320,15 @@ const itemToString = (item: CssValueInputValue | null) => {
   return item === null
     ? ""
     : item.type === "keyword"
-    ? // E.g. we want currentcolor to be lower case
-      toValue(item).toLocaleLowerCase()
-    : item.type === "intermediate" || item.type === "unit"
-    ? String(item.value)
-    : toValue(item);
+      ? // E.g. we want currentcolor to be lower case
+        toValue(item).toLocaleLowerCase()
+      : item.type === "intermediate" || item.type === "unit"
+        ? String(item.value)
+        : toValue(item);
 };
+
+const Description = styled(Box, { width: theme.spacing[27] });
+
 /**
  * Common:
  * - Free text editing
@@ -636,8 +640,8 @@ export const CssValueInput = ({
         {isUnitValue
           ? unitSelectElement
           : isKeywordValue
-          ? keywordButtonElement
-          : null}
+            ? keywordButtonElement
+            : null}
       </Flex>
     );
 
@@ -647,10 +651,11 @@ export const CssValueInput = ({
     highlightedValue?.type === "keyword"
       ? highlightedValue
       : props.value?.type === "keyword"
-      ? props.value
-      : items[0]?.type === "keyword"
-      ? items[0]
-      : undefined;
+        ? props.value
+        : items[0]?.type === "keyword"
+          ? items[0]
+          : undefined;
+
   if (valueForDescription) {
     const key = `${property}:${toValue(
       valueForDescription
@@ -658,9 +663,22 @@ export const CssValueInput = ({
     description = declarationDescriptions[key];
   }
 
+  const descriptions = items
+    .map((item) =>
+      item.type === "keyword"
+        ? declarationDescriptions[
+            `${property}:${toValue(
+              item
+            )}` as keyof typeof declarationDescriptions
+          ]
+        : undefined
+    )
+    .filter(Boolean)
+    .map((descr) => <Description>{descr}</Description>);
+
   return (
     <ComboboxRoot open={isOpen}>
-      <Box {...getComboboxProps()}>
+      <Box {...getComboboxProps()} css={{ width: "100%" }}>
         <ComboboxAnchor>
           <InputField
             size={size}
@@ -701,8 +719,8 @@ export const CssValueInput = ({
                 ))}
               </ComboboxScrollArea>
               {description && (
-                <ComboboxItemDescription>
-                  <Box css={{ width: theme.spacing[25] }}>{description}</Box>
+                <ComboboxItemDescription descriptions={descriptions}>
+                  <Description>{description}</Description>
                 </ComboboxItemDescription>
               )}
             </ComboboxListbox>

@@ -1,3 +1,5 @@
+import { z } from "zod";
+import { useId, useState } from "react";
 import { useStore } from "@nanostores/react";
 import {
   Grid,
@@ -10,18 +12,24 @@ import {
   CheckboxAndLabel,
   Checkbox,
   css,
+  Flex,
+  Tooltip,
+  InputErrorsTooltip,
+  ProBadge,
 } from "@webstudio-is/design-system";
+import { InfoCircleIcon } from "@webstudio-is/icons";
 import { ImageControl } from "./image-control";
-import { $assets, $imageLoader, $pages } from "~/shared/nano-states";
 import { Image } from "@webstudio-is/image";
-import { useIds } from "~/shared/form-utils";
 import type { ProjectMeta, CompilerSettings } from "@webstudio-is/sdk";
-import { useState } from "react";
+import { $assets, $imageLoader, $pages } from "~/shared/nano-states";
+import { useIds } from "~/shared/form-utils";
 import { serverSyncStore } from "~/shared/sync";
 import { sectionSpacing } from "./utils";
 import { CodeEditor } from "~/builder/shared/code-editor";
+import { $userPlanFeatures } from "~/builder/shared/nano-states";
 
 const imgStyle = css({
+  objectFit: "contain",
   width: 72,
   height: 72,
   borderRadius: theme.borderRadius[4],
@@ -32,15 +40,25 @@ const imgStyle = css({
 
 const defaultMetaSettings: ProjectMeta = {
   siteName: "",
+  contactEmail: "",
   faviconAssetId: "",
   code: "",
 };
 
+const Email = z.string().email();
+
 export const SectionGeneral = () => {
+  const { allowContactEmail } = useStore($userPlanFeatures);
   const [meta, setMeta] = useState(
     () => $pages.get()?.meta ?? defaultMetaSettings
   );
-  const ids = useIds(["siteName"]);
+  const siteNameId = useId();
+  const contactEmailId = useId();
+  const contactEmailError =
+    (meta.contactEmail ?? "").trim().length === 0 ||
+    Email.safeParse(meta.contactEmail).success
+      ? undefined
+      : "Contact email is invalid.";
   const assets = useStore($assets);
   const asset = assets.get(meta.faviconAssetId ?? "");
   const favIconUrl = asset ? `${asset.name}` : undefined;
@@ -65,24 +83,62 @@ export const SectionGeneral = () => {
   };
 
   return (
-    <>
+    <Grid gap={2}>
+      <Text variant="titles" css={sectionSpacing}>
+        General
+      </Text>
+
       <Grid gap={1} css={sectionSpacing}>
-        <Text variant="titles">General</Text>
-        <Label htmlFor={ids.siteName}>Site Name</Label>
+        <Flex gap={1} align="center">
+          <Label htmlFor={siteNameId}>Site Name</Label>
+          <Tooltip
+            variant="wrapped"
+            content="Used in search results and social previews."
+          >
+            <InfoCircleIcon tabIndex={0} />
+          </Tooltip>
+        </Flex>
         <InputField
-          id={ids.siteName}
+          id={siteNameId}
+          placeholder="Current Site Name"
+          autoFocus={true}
           value={meta.siteName ?? ""}
           onChange={(event) => {
             handleSave("siteName")(event.target.value);
           }}
-          placeholder="Current Site Name"
-          autoFocus
         />
+      </Grid>
+
+      <Grid gap={1} css={sectionSpacing}>
+        <Flex gap={1} align="center">
+          <Label htmlFor={contactEmailId}>Contact Email</Label>
+          <Tooltip
+            variant="wrapped"
+            content="Used as the email recipient when submitting a webhook form without an action."
+          >
+            <InfoCircleIcon tabIndex={0} />
+          </Tooltip>
+          {allowContactEmail === false && <ProBadge>Pro</ProBadge>}
+        </Flex>
+        <InputErrorsTooltip
+          errors={contactEmailError ? [contactEmailError] : undefined}
+        >
+          <InputField
+            id={contactEmailId}
+            color={contactEmailError ? "error" : undefined}
+            placeholder="email@address.com"
+            disabled={allowContactEmail === false}
+            value={meta.contactEmail ?? ""}
+            onChange={(event) => {
+              handleSave("contactEmail")(event.target.value);
+            }}
+          />
+        </InputErrorsTooltip>
       </Grid>
 
       <Separator />
 
-      <Grid gap={2} css={sectionSpacing}>
+      <Grid gap={2} css={sectionSpacing} justify={"start"}>
         <Label>Favicon</Label>
         <Grid flow="column" gap={3}>
           <Image
@@ -95,7 +151,7 @@ export const SectionGeneral = () => {
 
           <Grid gap={2}>
             <Text color="subtle">
-              Upload a 32 x 32 px image to display in browser tabs.
+              Upload a square image to display in browser tabs.
             </Text>
             <ImageControl onAssetIdChange={handleSave("faviconAssetId")}>
               <Button css={{ justifySelf: "start" }}>Upload</Button>
@@ -112,13 +168,17 @@ export const SectionGeneral = () => {
           Custom code and scripts will be added at the end of the &lt;head&gt;
           tag to every page across the published project.
         </Text>
-        <CodeEditor value={meta.code ?? ""} onChange={handleSave("code")} />
+        <CodeEditor
+          lang="html"
+          value={meta.code ?? ""}
+          onChange={handleSave("code")}
+        />
       </Grid>
 
       <Separator />
 
       <CompilerSection />
-    </>
+    </Grid>
   );
 };
 

@@ -4,8 +4,9 @@ import {
   type InvalidValue,
   type LayersValue,
   type TupleValue,
-  KeywordValue,
-  UnitValue,
+  type KeywordValue,
+  type UnitValue,
+  type StyleProperty,
 } from "@webstudio-is/css-engine";
 import {
   Flex,
@@ -20,11 +21,11 @@ import {
 } from "@webstudio-is/design-system";
 import {
   extractTransitionProperties,
-  parseTransition,
+  parseCssValue,
   type ExtractedTransitionProperties,
 } from "@webstudio-is/css-data";
-import { InfoCircleIcon } from "@webstudio-is/icons";
 import type {
+  CreateBatchUpdate,
   DeleteProperty,
   StyleUpdateOptions,
 } from "../../shared/use-style-data";
@@ -32,25 +33,49 @@ import { type IntermediateStyleValue } from "../../shared/css-value-input";
 import { TransitionProperty } from "./transition-property";
 import { TransitionTiming } from "./transition-timing";
 import { CssValueInputContainer } from "../../shared/css-value-input";
+import {
+  defaultTransitionProperty,
+  defaultTransitionDuration,
+  defaultTransitionTimingFunction,
+  defaultTransitionDelay,
+  deleteTransitionLayer,
+  parseTransitionShorthandToLayers,
+} from "./transition-utils";
+import type { StyleInfo } from "../../shared/style-info";
 
 type TransitionContentProps = {
   index: number;
+  property: StyleProperty;
   layer: TupleValue;
-  transition: string;
-  onEditLayer: (index: number, layer: LayersValue) => void;
+  propertyValue: string;
+  tooltip: JSX.Element;
+  onEditLayer: (
+    index: number,
+    layer: LayersValue,
+    options: StyleUpdateOptions
+  ) => void;
   deleteProperty: DeleteProperty;
+  currentStyle: StyleInfo;
+  createBatchUpdate: CreateBatchUpdate;
 };
+
+// We are allowing users to add/edit layers as shorthand from the style-panel
+// So, we need to use the shorthand property to validate the layer too.
+// We removed transition from properties list to drop support from advanced tab and so the typecasting.
+const shortHandTransitionProperty = "transition" as StyleProperty;
 
 export const TransitionContent = ({
   layer,
-  transition,
-  onEditLayer,
   index,
-  deleteProperty,
+  tooltip,
+  onEditLayer,
+  propertyValue,
+  createBatchUpdate,
+  currentStyle,
 }: TransitionContentProps) => {
   const [intermediateValue, setIntermediateValue] = useState<
     IntermediateStyleValue | InvalidValue | undefined
-  >({ type: "intermediate", value: transition });
+  >({ type: "intermediate", value: propertyValue });
 
   const { property, timing, delay, duration } =
     useMemo<ExtractedTransitionProperties>(
@@ -65,13 +90,16 @@ export const TransitionContent = ({
     });
   };
 
-  const handleComplete = () => {
+  const handleComplete = (options: StyleUpdateOptions) => {
     if (intermediateValue === undefined) {
       return;
     }
 
-    const layers = parseTransition(intermediateValue.value);
-    if (layers.type === "invalid") {
+    const layerValue = parseCssValue(
+      shortHandTransitionProperty,
+      intermediateValue.value
+    );
+    if (layerValue.type === "invalid") {
       setIntermediateValue({
         type: "invalid",
         value: intermediateValue.value,
@@ -79,8 +107,9 @@ export const TransitionContent = ({
       return;
     }
 
-    onEditLayer(index, layers);
-    setIntermediateValue(undefined);
+    const layers = parseTransitionShorthandToLayers(intermediateValue.value);
+
+    onEditLayer(index, layers, options);
   };
 
   const handlePropertyUpdate = (
@@ -93,16 +122,26 @@ export const TransitionContent = ({
     }).filter<UnitValue | KeywordValue>(
       (item): item is UnitValue | KeywordValue => item != null
     );
-    const newLayer: TupleValue = { type: "tuple", value };
+    const layerTuple: TupleValue = { type: "tuple", value };
+    const layerValue = parseCssValue(
+      shortHandTransitionProperty,
+      toValue(layerTuple)
+    );
+
+    if (layerValue.type === "invalid") {
+      setIntermediateValue({
+        type: "invalid",
+        value: toValue(layerTuple),
+      });
+      return;
+    }
 
     setIntermediateValue({
       type: "intermediate",
-      value: toValue(newLayer),
+      value: toValue(layerTuple),
     });
 
-    if (options.isEphemeral === false) {
-      onEditLayer(index, { type: "layers", value: [newLayer] });
-    }
+    onEditLayer(index, { type: "layers", value: [layerTuple] }, options);
   };
 
   return (
@@ -117,13 +156,13 @@ export const TransitionContent = ({
         }}
       >
         <TransitionProperty
-          /* Browser defaults for transition-property - all */
-          property={property ?? { type: "keyword" as const, value: "all" }}
+          property={property ?? defaultTransitionProperty}
           onPropertySelection={handlePropertyUpdate}
         />
 
         <Flex align="center">
           <Tooltip
+            variant="wrapped"
             content={
               <Flex gap="2" direction="column">
                 <Text variant="regularBold">Duration</Text>
@@ -131,10 +170,8 @@ export const TransitionContent = ({
                   transition-duration
                 </Text>
                 <Text>
-                  Sets the length of time a
-                  <br />
-                  transition animation should take
-                  <br /> to complete.
+                  Sets the length of time a transition animation should take to
+                  complete.
                 </Text>
               </Flex>
             }
@@ -146,22 +183,27 @@ export const TransitionContent = ({
           key={"transitionDuration"}
           property={"transitionDuration"}
           styleSource="local"
-          /* Browser default for transition-duration */
-          value={duration ?? { type: "unit", value: 0, unit: "ms" }}
+          value={duration ?? defaultTransitionDuration}
           keywords={[]}
           deleteProperty={() => {
             handlePropertyUpdate({ duration });
           }}
           setValue={(value, options) => {
-            if (value === undefined) {
+            if (
+              value === undefined ||
+              value.type !== "layers" ||
+              value.value[0].type !== "unit"
+            ) {
               return;
             }
-            handlePropertyUpdate({ duration: value }, options);
+
+            handlePropertyUpdate({ duration: value.value[0] }, options);
           }}
         />
 
         <Flex align="center">
           <Tooltip
+            variant="wrapped"
             content={
               <Flex gap="2" direction="column">
                 <Text variant="regularBold">Delay</Text>
@@ -169,9 +211,7 @@ export const TransitionContent = ({
                   transition-delay
                 </Text>
                 <Text>
-                  Specify the duration to wait
-                  <br />
-                  before the transition begins.
+                  Specify the duration to wait before the transition begins.
                 </Text>
               </Flex>
             }
@@ -183,21 +223,24 @@ export const TransitionContent = ({
           property={"transitionDelay"}
           key={"transitionDelay"}
           styleSource="local"
-          /* Browser default for transition-delay */
-          value={delay ?? { type: "unit", value: 0, unit: "ms" }}
+          value={delay ?? defaultTransitionDelay}
           keywords={[]}
           deleteProperty={() => handlePropertyUpdate({ delay })}
           setValue={(value, options) => {
-            if (value === undefined) {
+            if (
+              value === undefined ||
+              value.type !== "layers" ||
+              value.value[0].type !== "unit"
+            ) {
               return;
             }
-            handlePropertyUpdate({ delay: value }, options);
+
+            handlePropertyUpdate({ delay: value.value[0] }, options);
           }}
         />
 
         <TransitionTiming
-          /* Browser defaults for transition-property - ease */
-          timing={timing ?? { type: "keyword", value: "ease" }}
+          timing={timing ?? defaultTransitionTimingFunction}
           onTimingSelection={handlePropertyUpdate}
         />
       </Grid>
@@ -215,38 +258,22 @@ export const TransitionContent = ({
         <Label>
           <Flex align="center" gap="1">
             Code
-            <Tooltip
-              variant="wrapped"
-              content={
-                <Text>
-                  Paste CSS code for a transition
-                  <br />
-                  or part of a transition, for
-                  <br />
-                  example:
-                  <br />
-                  <br />
-                  opacity 200ms ease;
-                </Text>
-              }
-            >
-              <InfoCircleIcon />
-            </Tooltip>
+            {tooltip}
           </Flex>
         </Label>
         <TextArea
           rows={3}
           name="description"
           css={{ minHeight: theme.spacing[14], ...textVariants.mono }}
-          state={intermediateValue?.type === "invalid" ? "invalid" : undefined}
+          color={intermediateValue?.type === "invalid" ? "error" : undefined}
           value={intermediateValue?.value ?? ""}
           onChange={handleChange}
-          onBlur={handleComplete}
+          onBlur={() => handleComplete({ isEphemeral: true })}
           onKeyDown={(event) => {
             event.stopPropagation();
 
             if (event.key === "Enter") {
-              handleComplete();
+              handleComplete({ isEphemeral: false });
               event.preventDefault();
             }
 
@@ -255,7 +282,12 @@ export const TransitionContent = ({
                 return;
               }
 
-              deleteProperty("transition", { isEphemeral: true });
+              deleteTransitionLayer({
+                currentStyle,
+                createBatchUpdate,
+                index,
+                options: { isEphemeral: true },
+              });
               setIntermediateValue(undefined);
               event.preventDefault();
             }

@@ -1,13 +1,13 @@
-import type { AppContext } from "@webstudio-is/trpc-interface/index.server";
+import { type AppContext } from "@webstudio-is/trpc-interface/index.server";
 import env from "~/env/env.server";
 import { authenticator } from "~/services/auth.server";
 import { trpcSharedClient } from "~/services/trpc.server";
 import { entryApi } from "./entri/entri-api.server";
+
 import {
   getTokenPlanFeatures,
   getUserPlanFeatures,
 } from "./db/user-plan-features.server";
-import { getAllApprovedProjectIds } from "./marketplace/db.server";
 import { staticEnv } from "~/env/env.static.server";
 
 const createAuthorizationContext = async (
@@ -21,7 +21,6 @@ const createAuthorizationContext = async (
     url.hostname;
 
   const user = await authenticator.isAuthenticated(request);
-  const marketplaceProjectIds = await getAllApprovedProjectIds();
 
   const isServiceCall =
     request.headers.has("Authorization") &&
@@ -31,8 +30,6 @@ const createAuthorizationContext = async (
     userId: user?.id,
     authToken,
     isServiceCall,
-    marketplaceProjectIds,
-    authorizeTrpc: trpcSharedClient.authorize,
   };
 
   return context;

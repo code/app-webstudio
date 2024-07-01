@@ -167,9 +167,11 @@ export const SectionMarketplace = () => {
   };
 
   return (
-    <>
+    <Grid gap={2}>
+      <Text variant="titles" css={sectionSpacing}>
+        Marketplace
+      </Text>
       <Grid gap={1} css={sectionSpacing}>
-        <Text variant="titles">Marketplace</Text>
         <Label htmlFor={ids.name}>Product Name</Label>
         <InputErrorsTooltip errors={errors?.name}>
           <InputField
@@ -298,10 +300,6 @@ export const SectionMarketplace = () => {
 
       <Grid gap={2} css={sectionSpacing}>
         <PanelBanner>
-          <Text>
-            {`You can add a "ws:category" meta tag in the page settings for pages being grouped by category. You can also define
-            "ws:title" for each page; otherwise, the page title will be used.`}
-          </Text>
           <Text color="destructive">
             {`Don't forget to publish your project after every change to make your
             changes available in the marketplace!`}
@@ -350,6 +348,6 @@ export const SectionMarketplace = () => {
           </Button>
         )}
       </Flex>
-    </>
+    </Grid>
   );
 };

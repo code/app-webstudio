@@ -1,4 +1,4 @@
-import { ListViewIcon } from "@webstudio-is/icons/svg";
+import { ListViewIcon, PaintBrushIcon } from "@webstudio-is/icons/svg";
 import type {
   WsComponentMeta,
   WsComponentPropsMeta,
@@ -10,7 +10,7 @@ export const collectionComponent = "ws:collection";
 
 const collectionMeta: WsComponentMeta = {
   category: "data",
-  order: 7,
+  order: 2,
   type: "container",
   label: "Collection",
   icon: ListViewIcon,
@@ -40,7 +40,13 @@ const collectionMeta: WsComponentMeta = {
         {
           type: "instance",
           component: "Box",
-          children: [{ type: "expression", value: "collectionItem" }],
+          children: [
+            {
+              type: "instance",
+              component: "Text",
+              children: [{ type: "expression", value: "collectionItem" }],
+            },
+          ],
         },
       ],
     },
@@ -58,10 +64,56 @@ const collectionPropsMeta: WsComponentPropsMeta = {
   initialProps: ["data"],
 };
 
+export const descendantComponent = "ws:descendant";
+
+const descendantMeta: WsComponentMeta = {
+  category: "internal",
+  type: "control",
+  label: "Descendant",
+  icon: PaintBrushIcon,
+  detachable: false,
+};
+
+const descendantPropsMeta: WsComponentPropsMeta = {
+  props: {
+    selector: {
+      required: true,
+      type: "string",
+      control: "select",
+      options: [
+        " p",
+        " h1",
+        " h2",
+        " h3",
+        " h4",
+        " h5",
+        " h6",
+        " :where(strong, b)",
+        " :where(em, i)",
+        " a",
+        " img",
+        " blockquote",
+        " code",
+        " :where(ul, ol)",
+        " li",
+        " hr",
+      ],
+    },
+  },
+  initialProps: ["selector"],
+};
+
 export const coreMetas = {
   [collectionComponent]: collectionMeta,
+  [descendantComponent]: descendantMeta,
 };
 
 export const corePropsMetas = {
   [collectionComponent]: collectionPropsMeta,
+  [descendantComponent]: descendantPropsMeta,
 };
+
+// components with custom implementation
+// should not be imported as react component
+export const isCoreComponent = (component: string) =>
+  component === collectionComponent || component === descendantComponent;

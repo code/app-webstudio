@@ -461,7 +461,7 @@ test("when paste into copied instance insert after it", () => {
   );
 });
 
-test("prevent pasting portal into own descendents", () => {
+test("prevent pasting portal into own descendants", () => {
   const instances = toMap([
     createInstance("body", "Body", [{ type: "id", value: "portal" }]),
     createInstance("portal", portalComponent, [
@@ -592,44 +592,6 @@ test("insert into portal fragment when portal is a target", () => {
       createInstance("box", "Box", []),
       createInstance(boxId, "Box", []),
       createInstance(expectString, "Box", []),
-    ])
-  );
-});
-
-test("wrap siblings with span when instance is rich text container", () => {
-  $instances.set(
-    toMap([
-      createInstance("body", "Body", [
-        { type: "id", value: "text" },
-        { type: "id", value: "box" },
-      ]),
-      createInstance("text", "Text", [{ type: "text", value: "My Text" }]),
-      createInstance("box", "Box", []),
-    ])
-  );
-  $selectedInstanceSelector.set(["box", "body"]);
-  const clipboardData = onCopy() ?? "";
-  $selectedInstanceSelector.set(["text", "body"]);
-
-  const prevInstances = $instances.get();
-  onPaste(clipboardData);
-  const [boxId, spanId] = getMapDifference(
-    prevInstances,
-    $instances.get()
-  ).keys();
-  expect($instances.get()).toEqual(
-    toMap([
-      createInstance("body", "Body", [
-        { type: "id", value: "text" },
-        { type: "id", value: "box" },
-      ]),
-      createInstance("text", "Text", [
-        { type: "id", value: spanId },
-        { type: "id", value: boxId },
-      ]),
-      createInstance("box", "Box", []),
-      createInstance(boxId, "Box", []),
-      createInstance(spanId, "Text", [{ type: "text", value: "My Text" }]),
     ])
   );
 });

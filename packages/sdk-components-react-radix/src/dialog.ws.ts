@@ -109,23 +109,6 @@ export const metaDialog: WsComponentMeta = {
     {
       type: "instance",
       component: "Dialog",
-      variables: {
-        dialogOpen: { initialValue: false },
-      },
-      props: [
-        {
-          type: "expression",
-          name: "open",
-          code: "dialogOpen",
-        },
-        {
-          name: "onOpenChange",
-          type: "action",
-          value: [
-            { type: "execute", args: ["open"], code: `dialogOpen = open` },
-          ],
-        },
-      ],
       children: [
         {
           type: "instance",
@@ -135,7 +118,7 @@ export const metaDialog: WsComponentMeta = {
               type: "instance",
               component: "Button",
               styles: getButtonStyles("outline"),
-              children: [{ type: "text", value: "Button" }],
+              children: [{ type: "text", value: "Button", placeholder: true }],
             },
           ],
         },
@@ -202,7 +185,8 @@ export const metaDialog: WsComponentMeta = {
                       children: [
                         {
                           type: "text",
-                          value: "Dialog Title",
+                          value: "Dialog Title you can edit",
+                          placeholder: true,
                         },
                       ],
                     },
@@ -221,6 +205,7 @@ export const metaDialog: WsComponentMeta = {
                         {
                           type: "text",
                           value: "Dialog description text you can edit",
+                          placeholder: true,
                         },
                       ],
                     },
@@ -230,7 +215,13 @@ export const metaDialog: WsComponentMeta = {
                 {
                   type: "instance",
                   component: "Text",
-                  children: [{ type: "text", value: "The text you can edit" }],
+                  children: [
+                    {
+                      type: "text",
+                      value: "The text you can edit",
+                      placeholder: true,
+                    },
+                  ],
                 },
 
                 {
@@ -287,7 +278,7 @@ export const metaDialog: WsComponentMeta = {
 
 export const propsMetaDialog: WsComponentPropsMeta = {
   props: propsDialog,
-  initialProps: ["open"],
+  initialProps: [],
 };
 
 export const propsMetaDialogTrigger: WsComponentPropsMeta = {

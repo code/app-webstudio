@@ -151,11 +151,12 @@ export const usePropsLogic = ({
   const instanceMeta = useStore($registeredComponentMetas).get(
     instance.component
   );
-  const meta = useStore($registeredComponentPropsMetas).get(instance.component);
-
-  if (meta === undefined) {
-    throw new Error(`Could not get meta for component "${instance.component}"`);
-  }
+  const meta = useStore($registeredComponentPropsMetas).get(
+    instance.component
+  ) ?? {
+    props: {},
+    initialProps: [],
+  };
 
   const savedProps = props;
 
@@ -286,6 +287,14 @@ export const usePropsLogic = ({
     );
   };
 
+  const handleDeleteByPropName = (propName: string) => {
+    const prop = props.find((prop) => prop.name === propName);
+
+    if (prop) {
+      deleteProp(prop.id);
+    }
+  };
+
   const handleDelete = (prop: Prop) => {
     deleteProp(prop.id);
   };
@@ -295,6 +304,7 @@ export const usePropsLogic = ({
     handleChange,
     handleDelete,
     handleChangeByPropName,
+    handleDeleteByPropName,
     meta,
     /** Similar to Initial, but displayed as a separate group in UI etc.
      * Currentrly used only for the ID prop. */

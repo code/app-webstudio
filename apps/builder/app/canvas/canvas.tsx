@@ -12,6 +12,7 @@ import {
 import * as baseComponents from "@webstudio-is/sdk-components-react";
 import * as baseComponentMetas from "@webstudio-is/sdk-components-react/metas";
 import * as baseComponentPropsMetas from "@webstudio-is/sdk-components-react/props";
+import { hooks as baseComponentHooks } from "@webstudio-is/sdk-components-react/hooks";
 import * as remixComponents from "@webstudio-is/sdk-components-react-remix";
 import * as remixComponentMetas from "@webstudio-is/sdk-components-react-remix/metas";
 import * as remixComponentPropsMetas from "@webstudio-is/sdk-components-react-remix/props";
@@ -62,6 +63,7 @@ import { updateCollaborativeInstanceRect } from "./collaborative-instance";
 import { $params } from "./stores";
 import { useScrollNewInstanceIntoView } from "./shared/use-scroll-new-instance-into-view";
 import { subscribeInspectorEdits } from "./inspector-edits";
+import { initCanvasApi } from "~/shared/canvas-api";
 
 registerContainers();
 
@@ -158,6 +160,7 @@ export const Canvas = ({ params, imageLoader }: CanvasProps) => {
       components: baseComponents,
       metas: baseComponentMetas,
       propsMetas: baseComponentPropsMetas,
+      hooks: baseComponentHooks,
     });
     registerComponentLibrary({
       components: remixComponents,
@@ -177,6 +180,8 @@ export const Canvas = ({ params, imageLoader }: CanvasProps) => {
     // required to compute asset and page props for rendering
     $params.set(params);
   });
+
+  useMount(initCanvasApi);
 
   useLayoutEffect(() => {
     mountStyles();

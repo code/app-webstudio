@@ -22,18 +22,23 @@ import {
   useDraggable,
 } from "./use-draggable";
 import { MetaIcon } from "~/builder/shared/meta-icon";
-import { $registeredComponentMetas } from "~/shared/nano-states";
+import { $registeredComponentMetas, $selectedPage } from "~/shared/nano-states";
 import { getMetaMaps } from "./get-meta-maps";
 import { getInstanceLabel } from "~/shared/instance-utils";
 import { isFeatureEnabled } from "@webstudio-is/feature-flags";
+import { insert } from "./insert";
 
 export const TabContent = ({ publish, onSetActiveTab }: TabContentProps) => {
   const metaByComponentName = useStore($registeredComponentMetas);
+  const selectedPage = useStore($selectedPage);
+
+  const documentType = selectedPage?.meta.documentType ?? "html";
+
   const { metaByCategory, componentNamesByMeta } = useMemo(
     () => getMetaMaps(metaByComponentName),
     [metaByComponentName]
   );
-  const { dragCard, handleInsert, draggableContainerRef } = useDraggable({
+  const { dragCard, draggableContainerRef } = useDraggable({
     publish,
     metaByComponentName,
   });
@@ -51,9 +56,18 @@ export const TabContent = ({ publish, onSetActiveTab }: TabContentProps) => {
               return false;
             }
 
+            // Only xml category is allowed for xml document type
+            if (documentType === "xml") {
+              return category === "xml" || category === "data";
+            }
+            // Hide xml category for non-xml document types
+            if (category === "xml") {
+              return false;
+            }
+
             if (
-              isFeatureEnabled("xmlElement") === false &&
-              category === "xml"
+              isFeatureEnabled("internalComponents") === false &&
+              category === "internal"
             ) {
               return false;
             }
@@ -68,8 +82,16 @@ export const TabContent = ({ publish, onSetActiveTab }: TabContentProps) => {
                   wrap="wrap"
                   css={{ px: theme.spacing[9], overflow: "auto" }}
                 >
-                  {(metaByCategory.get(category) ?? []).map(
-                    (meta: WsComponentMeta, index) => {
+                  {(metaByCategory.get(category) ?? [])
+                    .filter((meta: WsComponentMeta) => {
+                      if (documentType === "xml" && meta.category === "data") {
+                        return (
+                          componentNamesByMeta.get(meta) === "ws:collection"
+                        );
+                      }
+                      return true;
+                    })
+                    .map((meta: WsComponentMeta, index) => {
                       const component = componentNamesByMeta.get(meta);
                       if (component === undefined) {
                         return;
@@ -77,6 +99,12 @@ export const TabContent = ({ publish, onSetActiveTab }: TabContentProps) => {
                       if (
                         isFeatureEnabled("filters") === false &&
                         component === "RemixForm"
+                      ) {
+                        return;
+                      }
+                      if (
+                        isFeatureEnabled("cms") === false &&
+                        component === "ContentEmbed"
                       ) {
                         return;
                       }
@@ -92,7 +120,7 @@ export const TabContent = ({ publish, onSetActiveTab }: TabContentProps) => {
                             );
                             if (component) {
                               onSetActiveTab("none");
-                              handleInsert(component);
+                              insert(component);
                             }
                           }}
                         >
@@ -104,8 +132,7 @@ export const TabContent = ({ publish, onSetActiveTab }: TabContentProps) => {
                           />
                         </ListItem>
                       );
-                    }
-                  )}
+                    })}
                   {dragCard}
                 </Flex>
               </List>

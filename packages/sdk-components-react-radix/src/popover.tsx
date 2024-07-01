@@ -1,6 +1,3 @@
-/* eslint-disable react/display-name */
-// We can't use .displayName until this is merged https://github.com/styleguidist/react-docgen-typescript/pull/449
-
 import {
   type ComponentPropsWithoutRef,
   type ReactNode,
@@ -8,7 +5,11 @@ import {
   Children,
 } from "react";
 import * as PopoverPrimitive from "@radix-ui/react-popover";
-import { getClosestInstance, type Hook } from "@webstudio-is/react-sdk";
+import {
+  getClosestInstance,
+  getInstanceSelectorById,
+  type Hook,
+} from "@webstudio-is/react-sdk";
 
 // wrap in forwardRef because Root is functional component without ref
 export const Popover = forwardRef<
@@ -74,7 +75,11 @@ export const hooksPopover: Hook = {
           `${namespace}:Popover`
         );
         if (popover) {
-          context.setPropVariable(popover.id, "open", false);
+          const instanceSelector = getInstanceSelectorById(
+            event.instanceSelector,
+            popover.id
+          );
+          context.setMemoryProp(instanceSelector, "open", undefined);
         }
       }
     }
@@ -88,7 +93,11 @@ export const hooksPopover: Hook = {
           `${namespace}:Popover`
         );
         if (popover) {
-          context.setPropVariable(popover.id, "open", true);
+          const instanceSelector = getInstanceSelectorById(
+            event.instanceSelector,
+            popover.id
+          );
+          context.setMemoryProp(instanceSelector, "open", true);
         }
       }
     }

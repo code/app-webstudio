@@ -30,7 +30,6 @@ const initialPropertyNames = new Set<StyleProperty>([
   "userSelect",
   "pointerEvents",
   "mixBlendMode",
-  "backdropFilter",
   "cursor",
   "opacity",
 ]);
@@ -160,12 +159,12 @@ export const Section = ({
                 styleSource={getStyleSource(currentStyle[property])}
                 keywords={keywords}
                 value={currentStyle[property]?.value}
-                setValue={(styleValue, options) => {
+                setValue={(styleValue, options) =>
                   setProperty(property)(styleValue, {
                     ...options,
                     listed: true,
-                  });
-                }}
+                  })
+                }
                 deleteProperty={deleteProperty}
               />
             </Flex>

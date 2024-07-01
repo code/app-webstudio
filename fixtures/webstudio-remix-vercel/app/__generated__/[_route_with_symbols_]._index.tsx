@@ -7,6 +7,8 @@ import { useResource } from "@webstudio-is/react-sdk";
 import { Body as Body } from "@webstudio-is/sdk-components-react-remix";
 import { Image as Image } from "@webstudio-is/sdk-components-react";
 
+export const siteName = "KittyGuardedZone";
+
 export const favIconAsset: ImageAsset | undefined = {
   id: "88d5e2ff-b8f2-4899-aaf8-dde4ade6da10",
   name: "DALL_E_2023-10-30_12.39.46_-_Photo_logo_with_a_bold_cat_silhouette_centered_on_a_contrasting_background_designed_for_clarity_at_small_32x32_favicon_resolution_00h6cEA8u2pJRvVJv7hRe.png",
@@ -33,7 +35,7 @@ const Page = ({}: { system: any }) => {
         data-ws-id="AdXSAYCx4QDo5QN6nLoGs"
         data-ws-component="Image"
         src={"/assets/small-avif-kitty_FnabJsioMWpBtXZSGf4DR.webp"}
-        className="czgliev"
+        className="c1czoo99"
       />
     </Body>
   );

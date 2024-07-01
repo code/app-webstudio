@@ -10,10 +10,10 @@ import {
   readdir,
 } from "node:fs/promises";
 import { pipeline } from "node:stream/promises";
-import { cwd } from "node:process";
+import { cwd, exit } from "node:process";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import pLimit from "p-limit";
-import ora from "ora";
+import { log, spinner } from "@clack/prompts";
 import merge from "deepmerge";
 import {
   generateCss,
@@ -25,7 +25,7 @@ import {
   normalizeProps,
   generateRemixRoute,
   generateRemixParams,
-  collectionComponent,
+  isCoreComponent,
 } from "@webstudio-is/react-sdk";
 import type {
   Instance,
@@ -55,12 +55,13 @@ import * as remixComponentMetas from "@webstudio-is/sdk-components-react-remix/m
 import * as radixComponentMetas from "@webstudio-is/sdk-components-react-radix/metas";
 import { LOCAL_DATA_FILE } from "./config";
 import {
-  ensureFileInPath,
-  ensureFolderExists,
+  createFileIfNotExists,
+  createFolderIfNotExists,
   loadJSONFile,
   isFileExists,
 } from "./fs-utils";
 import type * as sharedConstants from "../templates/defaults/app/constants.mjs";
+import { htmlToJsx } from "./html-to-jsx";
 
 const limit = pLimit(10);
 
@@ -97,7 +98,7 @@ export const downloadAsset = async (
   try {
     await access(assetPath);
   } catch {
-    await ensureFolderExists(dirname(assetPath));
+    await createFolderIfNotExists(dirname(assetPath));
 
     try {
       const response = await fetch(url);
@@ -210,12 +211,13 @@ export const prebuild = async (options: {
   /**
    * Template to use for the build in addition to defaults template
    **/
-  template?: string[];
+  template: string[];
 }) => {
-  if (options.template === undefined) {
-    throw new Error(
-      `\n Template is not provided \n Please check webstudio --help for more details`
+  if (options.template.length === 0) {
+    log.error(
+      `Template is not provided\nPlease check webstudio --help for more details`
     );
+    exit(1);
   }
 
   for (const template of options.template) {
@@ -230,16 +232,14 @@ export const prebuild = async (options: {
     }
 
     if ((await isCliTemplate(template)) === false) {
-      throw Error(
-        `\n Template ${options.template} is not available \n Please check webstudio --help for more details`
+      log.error(
+        `Template ${options.template} is not available\nPlease check webstudio --help for more details`
       );
+      exit(1);
     }
   }
 
-  const spinner = ora("Scaffolding the project files");
-  spinner.start();
-
-  spinner.text = "Generating files";
+  log.step("Scaffolding the project files");
 
   const appRoot = "app";
 
@@ -250,6 +250,9 @@ export const prebuild = async (options: {
   await rm(routesDir, { recursive: true, force: true });
 
   await copyTemplates();
+
+  // force npm to install with not matching peer dependencies
+  await writeFile(join(cwd(), ".npmrc"), "force=true");
 
   for (const template of options.template) {
     // default template is already applied no need to copy twice
@@ -325,7 +328,9 @@ export const prebuild = async (options: {
       props: siteData.build.props.map(([_id, prop]) => prop),
       assetBaseUrl,
       assets: new Map(siteData.assets.map((asset) => [asset.id, asset])),
+      uploadingImageAssets: [],
       pages: siteData.build.pages,
+      source: "prebuild",
     });
 
     const props: [Prop["id"], Prop][] = [];
@@ -369,7 +374,7 @@ export const prebuild = async (options: {
 
     componentsByPage[page.id] = new Set();
     for (const [_instanceId, instance] of instances) {
-      if (instance.component === collectionComponent) {
+      if (isCoreComponent(instance.component)) {
         continue;
       }
       componentsByPage[page.id].add(instance.component);
@@ -474,9 +479,9 @@ export const prebuild = async (options: {
 
   const assets = new Map(siteData.assets.map((asset) => [asset.id, asset]));
 
-  spinner.text = "Generating css file";
-
   const { cssText, classesMap } = generateCss({
+    instances: new Map(siteData.build.instances),
+    props: new Map(siteData.build.props),
     assets,
     breakpoints: new Map(siteData.build?.breakpoints),
     styles: new Map(siteData.build?.styles),
@@ -487,15 +492,21 @@ export const prebuild = async (options: {
     atomic: siteData.build.pages.compiler?.atomicStyles ?? true,
   });
 
-  await ensureFileInPath(join(generatedDir, "index.css"), cssText);
+  await createFileIfNotExists(join(generatedDir, "index.css"), cssText);
 
-  spinner.text = "Generating routes and pages";
+  // MARK: - Route templates read
+  const routeTemplatesDir = join(cwd(), "app/route-templates");
 
-  const routeTemplatePath = normalize(join(cwd(), "app/routes/template.tsx"));
+  const routeTemplatePath = normalize(join(routeTemplatesDir, "html.tsx"));
+  const routeXmlTemplatePath = normalize(join(routeTemplatesDir, "xml.tsx"));
+  const defaultSiteMapXmlPath = normalize(
+    join(routeTemplatesDir, "default-sitemap.tsx")
+  );
 
   const routeFileTemplate = await readFile(routeTemplatePath, "utf8");
-
-  await rm(routeTemplatePath);
+  const routeXmlFileTemplate = await readFile(routeXmlTemplatePath, "utf8");
+  const defaultSiteMapTemplate = await readFile(defaultSiteMapXmlPath, "utf8");
+  await rm(routeTemplatesDir, { recursive: true, force: true });
 
   for (const [pageId, pageComponents] of Object.entries(componentsByPage)) {
     const scope = createScope([
@@ -506,10 +517,12 @@ export const prebuild = async (options: {
       "Page",
       "_props",
     ]);
+
     const namespaces = new Map<
       string,
       Set<[shortName: string, componentName: string]>
     >();
+
     const BASE_NAMESPACE = "@webstudio-is/sdk-components-react";
     const REMIX_NAMESPACE = "@webstudio-is/sdk-components-react-remix";
 
@@ -537,17 +550,50 @@ export const prebuild = async (options: {
     }
 
     let componentImports = "";
-    for (const [namespace, componentsSet] of namespaces.entries()) {
-      const specifiers = Array.from(componentsSet)
-        .map(
-          ([shortName, component]) =>
-            `${shortName} as ${scope.getName(component, shortName)}`
-        )
-        .join(", ");
-      componentImports += `import { ${specifiers} } from "${namespace}";\n`;
-    }
+    let xmlPresentationComponents = "";
 
     const pageData = siteDataByPage[pageId];
+    const documentType = pageData.page.meta.documentType ?? "html";
+
+    for (const [namespace, componentsSet] of namespaces.entries()) {
+      switch (documentType) {
+        case "html":
+          {
+            const specifiers = Array.from(componentsSet)
+              .map(
+                ([shortName, component]) =>
+                  `${shortName} as ${scope.getName(component, shortName)}`
+              )
+              .join(", ");
+            componentImports += `import { ${specifiers} } from "${namespace}";\n`;
+          }
+          break;
+
+        case "xml":
+          {
+            // In case of xml it's the only component we are supporting
+            componentImports = `import { XmlNode } from "@webstudio-is/sdk-components-react";\n`;
+
+            // Passthrough (render children) for Body, do not render all other components
+            xmlPresentationComponents += Array.from(componentsSet)
+              .map(([shortName, component]) =>
+                scope.getName(component, shortName)
+              )
+              .filter((scopedName) => scopedName !== "XmlNode")
+              .map((scopedName) =>
+                scopedName === "Body"
+                  ? `const ${scopedName} = (props: any) => props.children;`
+                  : `const ${scopedName} = () => null;`
+              )
+              .join("\n");
+          }
+          break;
+        default: {
+          documentType satisfies never;
+        }
+      }
+    }
+
     const pageFontAssets = fontAssetsByPage[pageId];
     const pageBackgroundImageAssets = backgroundImageAssetsByPage[pageId];
 
@@ -581,83 +627,108 @@ export const prebuild = async (options: {
     });
 
     const projectMeta = siteData.build.pages.meta;
+    const contactEmail: undefined | string =
+      // fallback to user email when contact email is empty string
+      projectMeta?.contactEmail || siteData.user?.email || undefined;
     const pageMeta = pageData.page.meta;
     const favIconAsset = assets.get(projectMeta?.faviconAssetId ?? "");
     const socialImageAsset = assets.get(pageMeta.socialImageAssetId ?? "");
-    const pageExports = `/* eslint-disable */
-/* This is a auto generated file for building the project */ \n
-
-import { Fragment, useState } from "react";
-import type { FontAsset, ImageAsset } from "@webstudio-is/sdk";
-import { useResource } from "@webstudio-is/react-sdk";
-${componentImports}
-
-export const favIconAsset: ImageAsset | undefined =
-  ${JSON.stringify(favIconAsset)};
-
-export const socialImageAsset: ImageAsset | undefined =
-  ${JSON.stringify(socialImageAsset)};
-
-// Font assets on current page (can be preloaded)
-export const pageFontAssets: FontAsset[] =
-  ${JSON.stringify(pageFontAssets)}
-
-export const pageBackgroundImageAssets: ImageAsset[] =
-  ${JSON.stringify(pageBackgroundImageAssets)}
-
-
-
-${pageComponent}
-
-export { Page }
-`;
-    const serverExports = `/* eslint-disable */
-/* This is a auto generated file for building the project */ \n
-
-import type { ProjectMeta, PageMeta } from "@webstudio-is/sdk";
-${generateResourcesLoader({
-  scope,
-  page: pageData.page,
-  dataSources,
-  resources,
-})}
-
-${generatePageMeta({
-  globalScope: scope,
-  page: pageData.page,
-  dataSources,
-})}
-
-${generateFormsProperties(props)}
-
-${generateRemixParams(pageData.page.path)}
-
-export const projectId = "${siteData.build.projectId}";
-
-export const user: { email: string | null } | undefined =
-  ${JSON.stringify(siteData.user)};
-
-export const projectMeta: ProjectMeta =
-  ${JSON.stringify(projectMeta)};
-`;
-
-    /*
-      The _index is mandatory.
-      Let's say there is a route /test.one.tsx and then there is a /test.tsx route.
-      Remix doesn't pick the /test.tsx by default unless we mention the _index at the end.
-
-      Or else it picks the first route that matches the /test as a layout and not a independent route.
-      So, we need to mark the pages as _index at the end. So deep nested routes works as expected.
-
-      Details:
-      https://remix.run/docs/en/main/file-conventions/route-files-v2#nested-urls-without-layout-nesting
-    */
 
     const pagePath = getPagePath(pageData.page.id, siteData.build.pages);
     const remixRoute = generateRemixRoute(pagePath);
     const fileName = `${remixRoute}.tsx`;
 
-    const routeFileContent = routeFileTemplate
+    // MARK: - TODO: XML GENERATION
+    const pageExports = `/* eslint-disable */
+      /* This is a auto generated file for building the project */ \n
+
+      import { Fragment, useState } from "react";
+      import type { FontAsset, ImageAsset } from "@webstudio-is/sdk";
+      import { useResource } from "@webstudio-is/react-sdk";
+      ${componentImports}
+
+      export const siteName = ${JSON.stringify(projectMeta?.siteName)};
+
+      export const favIconAsset: ImageAsset | undefined =
+        ${JSON.stringify(favIconAsset)};
+
+      export const socialImageAsset: ImageAsset | undefined =
+        ${JSON.stringify(socialImageAsset)};
+
+      // Font assets on current page (can be preloaded)
+      export const pageFontAssets: FontAsset[] =
+        ${JSON.stringify(pageFontAssets)}
+
+      export const pageBackgroundImageAssets: ImageAsset[] =
+        ${JSON.stringify(pageBackgroundImageAssets)}
+
+      ${
+        remixRoute === "_index"
+          ? `
+            ${
+              projectMeta?.code
+                ? `
+            const Script = ({children, ...props}: Record<string, string | boolean>) => {
+              if (children == null) {
+                return <script {...props} />;
+              }
+
+              return <script {...props} dangerouslySetInnerHTML={{__html: children}} />;
+            };
+            const Style = ({children, ...props}: Record<string, string | boolean>) => {
+              if (children == null) {
+                return <style {...props} />;
+              }
+
+              return <style {...props} dangerouslySetInnerHTML={{__html: children}} />;
+            };
+            `
+                : ""
+            }
+
+            export const CustomCode = () => {
+              return (<>${projectMeta?.code ? htmlToJsx(projectMeta.code) : ""}</>);
+            }
+          `
+          : ""
+      }
+
+      ${xmlPresentationComponents}
+
+      ${pageComponent}
+
+      export { Page }
+    `;
+
+    const serverExports = `/* eslint-disable */
+      /* This is a auto generated file for building the project */ \n
+
+      import type { PageMeta } from "@webstudio-is/sdk";
+      ${generateResourcesLoader({
+        scope,
+        page: pageData.page,
+        dataSources,
+        resources,
+      })}
+
+      ${generatePageMeta({
+        globalScope: scope,
+        page: pageData.page,
+        dataSources,
+      })}
+
+      ${generateFormsProperties(props)}
+
+      ${generateRemixParams(pageData.page.path)}
+
+      export const projectId = "${siteData.build.projectId}";
+
+      export const contactEmail = ${JSON.stringify(contactEmail)};
+    `;
+
+    const routeFileContent = (
+      documentType === "html" ? routeFileTemplate : routeXmlFileTemplate
+    )
       .replace(
         /".*\/__generated__\/_index"/,
         `"../__generated__/${remixRoute}"`
@@ -667,17 +738,24 @@ export const projectMeta: ProjectMeta =
         `"../__generated__/${remixRoute}.server"`
       );
 
-    await ensureFileInPath(join(routesDir, fileName), routeFileContent);
-    await ensureFileInPath(join(generatedDir, fileName), pageExports);
+    await createFileIfNotExists(join(routesDir, fileName), routeFileContent);
 
-    await ensureFileInPath(
+    await createFileIfNotExists(join(generatedDir, fileName), pageExports);
+
+    await createFileIfNotExists(
       join(generatedDir, `${remixRoute}.server.tsx`),
       serverExports
     );
   }
 
-  await writeFile(
-    join(generatedDir, "[sitemap.xml].ts"),
+  // MARK: - Default sitemap.xml
+  await createFileIfNotExists(
+    join(routesDir, "[sitemap.xml]._index.tsx"),
+    defaultSiteMapTemplate.replace(/".*\/__generated__\//, `"../__generated__/`)
+  );
+
+  await createFileIfNotExists(
+    join(generatedDir, "$resources.sitemap.xml.ts"),
     `
       export const sitemap = ${JSON.stringify(
         getStaticSiteMapXml(siteData.build.pages, siteData.build.updatedAt),
@@ -689,25 +767,27 @@ export const projectMeta: ProjectMeta =
 
   const redirects = siteData.build.pages?.redirects;
   if (redirects !== undefined && redirects.length > 0) {
-    spinner.text = "Generating redirects";
-
     for (const redirect of redirects) {
       const redirectPagePath = generateRemixRoute(redirect.old);
       const redirectFileName = `${redirectPagePath}.ts`;
 
       const content = `import { type LoaderFunctionArgs, redirect } from "@remix-run/server-runtime";
 
-export const loader = (arg: LoaderFunctionArgs) => {
-  return redirect("${redirect.new}", ${redirect.status ?? 301});
-};
-`;
+      export const loader = (arg: LoaderFunctionArgs) => {
+      return redirect("${redirect.new}", ${redirect.status ?? 301});
+      };
+      `;
 
-      await ensureFileInPath(join(routesDir, redirectFileName), content);
+      await createFileIfNotExists(join(routesDir, redirectFileName), content);
     }
   }
 
-  spinner.text = "Downloading fonts and images";
-  await Promise.all(assetsToDownload);
+  if (assetsToDownload.length > 0) {
+    const downloading = spinner();
+    downloading.start("Downloading fonts and images");
+    await Promise.all(assetsToDownload);
+    downloading.stop("Downloaded fonts and images");
+  }
 
-  spinner.succeed("Build finished");
+  log.step("Build finished");
 };

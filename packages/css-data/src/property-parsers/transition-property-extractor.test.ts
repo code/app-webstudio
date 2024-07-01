@@ -33,28 +33,28 @@ describe("extractTransitionProperties", () => {
       timing: { type: "keyword", value: "ease" },
       delay: { type: "unit", value: 50, unit: "ms" },
     });
-    expect(result).toMatchSnapshot(`
-      {
-        "property": {
-          "type": "keyword",
-          "value": "opacity"
-        },
-        "duration": {
-          "type": "unit",
-          "value": 200,
-          "unit": "ms"
-        },
-        "timing": {
-          "type": "keyword",
-          "value": "ease"
-        },
-        "delay": {
-          "type": "unit",
-          "value": 50,
-          "unit": "ms"
-        }
-      }
-      `);
+    expect(result).toMatchInlineSnapshot(`
+{
+  "delay": {
+    "type": "unit",
+    "unit": "ms",
+    "value": 50,
+  },
+  "duration": {
+    "type": "unit",
+    "unit": "ms",
+    "value": 200,
+  },
+  "property": {
+    "type": "keyword",
+    "value": "opacity",
+  },
+  "timing": {
+    "type": "keyword",
+    "value": "ease",
+  },
+}
+`);
   });
 
   test("parses and extracts values from opacity 200ms ease", () => {
@@ -81,26 +81,26 @@ describe("extractTransitionProperties", () => {
       property: { type: "keyword", value: "opacity" },
       duration: { type: "unit", value: 200, unit: "ms" },
       timing: { type: "keyword", value: "ease" },
-      delay: null,
+      delay: undefined,
     });
-    expect(result).toMatchSnapshot(`
-      {
-        "property": {
-          "type": "keyword",
-          "value": "opacity"
-        },
-        "duration": {
-          "type": "unit",
-          "value": 200,
-          "unit": "ms"
-        },
-        "timing": {
-          "type": "keyword",
-          "value": "ease"
-        },
-        "delay": null
-      }
-      `);
+    expect(result).toMatchInlineSnapshot(`
+{
+  "delay": undefined,
+  "duration": {
+    "type": "unit",
+    "unit": "ms",
+    "value": 200,
+  },
+  "property": {
+    "type": "keyword",
+    "value": "opacity",
+  },
+  "timing": {
+    "type": "keyword",
+    "value": "ease",
+  },
+}
+`);
   });
 
   test("parses and extracts values from opacity 200ms 10ms", () => {
@@ -127,28 +127,28 @@ describe("extractTransitionProperties", () => {
     expect(result).toEqual({
       property: { type: "keyword", value: "opacity" },
       duration: { type: "unit", value: 200, unit: "ms" },
-      timing: null,
+      timing: undefined,
       delay: { type: "unit", value: 10, unit: "ms" },
     });
-    expect(result).toMatchSnapshot(`
-      {
-        "property": {
-          "type": "keyword",
-          "value": "opacity"
-        },
-        "duration": {
-          "type": "unit",
-          "value": 200,
-          "unit": "ms"
-        },
-        "timing": null,
-        "delay": {
-          "type": "unit",
-          "value": 10,
-          "unit": "ms"
-        }
-      }
-    `);
+    expect(result).toMatchInlineSnapshot(`
+{
+  "delay": {
+    "type": "unit",
+    "unit": "ms",
+    "value": 10,
+  },
+  "duration": {
+    "type": "unit",
+    "unit": "ms",
+    "value": 200,
+  },
+  "property": {
+    "type": "keyword",
+    "value": "opacity",
+  },
+  "timing": undefined,
+}
+`);
   });
 
   test("parses and extracts values from opacity 200ms", () => {
@@ -170,24 +170,24 @@ describe("extractTransitionProperties", () => {
     expect(result).toEqual({
       property: { type: "keyword", value: "opacity" },
       duration: { type: "unit", value: 200, unit: "ms" },
-      timing: null,
-      delay: null,
+      timing: undefined,
+      delay: undefined,
     });
-    expect(result).toMatchSnapshot(`
-      {
-        "property": {
-          "type": "keyword",
-          "value": "opacity"
-        },
-        "duration": {
-          "type": "unit",
-          "value": 200,
-          "unit": "ms"
-        },
-        "timing": null,
-        "delay": null
-      }
-      `);
+    expect(result).toMatchInlineSnapshot(`
+{
+  "delay": undefined,
+  "duration": {
+    "type": "unit",
+    "unit": "ms",
+    "value": 200,
+  },
+  "property": {
+    "type": "keyword",
+    "value": "opacity",
+  },
+  "timing": undefined,
+}
+`);
   });
 
   test("parses and extracts values from ease 10ms", () => {
@@ -206,10 +206,10 @@ describe("extractTransitionProperties", () => {
       ],
     });
     expect(result).toEqual({
-      property: null,
+      property: undefined,
       duration: { type: "unit", value: 10, unit: "ms" },
       timing: { type: "keyword", value: "ease" },
-      delay: null,
+      delay: undefined,
     });
   });
 
@@ -230,24 +230,11 @@ describe("extractTransitionProperties", () => {
 
     expect(result).toEqual({
       property: { type: "keyword", value: "opacity" },
-      duration: null,
+      duration: undefined,
       timing: { type: "keyword", value: "ease" },
-      delay: null,
+      delay: undefined,
     });
-    expect(result).toMatchSnapshot(`
-      {
-        "property": {
-          "type": "keyword",
-          "value": "opacity"
-        },
-        "duration": null,
-        "timing": {
-          "type": "keyword",
-          "value": "ease"
-        },
-        "delay": null
-      }
-    `);
+    expect(result).toMatchInlineSnapshot;
   });
 
   test("parses and extracts values from opacity ease 50ms", () => {
@@ -274,26 +261,26 @@ describe("extractTransitionProperties", () => {
       property: { type: "keyword", value: "opacity" },
       duration: { type: "unit", value: 50, unit: "ms" },
       timing: { type: "keyword", value: "ease" },
-      delay: null,
+      delay: undefined,
     });
-    expect(result).toMatchSnapshot(`
-      {
-        "property": {
-          "type": "keyword",
-          "value": "opacity"
-        },
-        "duration": {
-          "type": "unit",
-          "value": 50,
-          "unit": "ms"
-        },
-        "timing": {
-          "type": "keyword",
-          "value": "ease"
-        },
-        "delay": null
-      }
-    `);
+    expect(result).toMatchInlineSnapshot(`
+{
+  "delay": undefined,
+  "duration": {
+    "type": "unit",
+    "unit": "ms",
+    "value": 50,
+  },
+  "property": {
+    "type": "keyword",
+    "value": "opacity",
+  },
+  "timing": {
+    "type": "keyword",
+    "value": "ease",
+  },
+}
+`);
   });
 
   test("parses and extracts values from transform 0.6s cubic-bezier(0.36, 0, 0.66, -0.56)", () => {
@@ -320,29 +307,29 @@ describe("extractTransitionProperties", () => {
       property: { type: "keyword", value: "transform" },
       duration: { type: "unit", value: 0.6, unit: "s" },
       timing: { type: "keyword", value: "cubic-bezier(0.36, 0, 0.66, -0.56)" },
-      delay: null,
+      delay: undefined,
     });
-    expect(result).toMatchSnapshot(`
-      {
-        "property": {
-          "type": "keyword",
-          "value": "transform"
-        },
-        "duration": {
-          "type": "unit",
-          "value": 0.6,
-          "unit": "s"
-        },
-        "timing": {
-          "type": "keyword",
-          "value": "cubic-bezier(0.36, 0, 0.66, -0.56)"
-        },
-        "delay": null
-      }
-    `);
+    expect(result).toMatchInlineSnapshot(`
+{
+  "delay": undefined,
+  "duration": {
+    "type": "unit",
+    "unit": "s",
+    "value": 0.6,
+  },
+  "property": {
+    "type": "keyword",
+    "value": "transform",
+  },
+  "timing": {
+    "type": "keyword",
+    "value": "cubic-bezier(0.36, 0, 0.66, -0.56)",
+  },
+}
+`);
   });
 
-  test("parses and extracts values from custom-property ease", () => {
+  test("parses and throws error for non-animatable 'custom-property ease'", () => {
     const result = extractTransitionProperties({
       type: "tuple",
       value: [
@@ -358,26 +345,23 @@ describe("extractTransitionProperties", () => {
     });
 
     expect(result).toEqual({
-      property: { type: "keyword", value: "custom-property" },
-      duration: null,
+      property: undefined,
+      duration: undefined,
       timing: { type: "keyword", value: "ease" },
-      delay: null,
+      delay: undefined,
     });
 
-    expect(result).toMatchSnapshot(`
-      {
-        "property": {
-          "type": "keyword",
-          "value": "custom-property"
-        },
-        "duration": null,
-        "timing": {
-          "type": "keyword",
-          "value": "ease"
-        },
-        "delay": null
-      }
-    `);
+    expect(result).toMatchInlineSnapshot(`
+{
+  "delay": undefined,
+  "duration": undefined,
+  "property": undefined,
+  "timing": {
+    "type": "keyword",
+    "value": "ease",
+  },
+}
+`);
   });
 
   test("parses and extracts values from custom-property ease", () => {
@@ -392,22 +376,22 @@ describe("extractTransitionProperties", () => {
     });
 
     expect(result).toEqual({
-      property: null,
-      duration: null,
+      property: undefined,
+      duration: undefined,
       timing: { type: "keyword", value: "ease" },
-      delay: null,
+      delay: undefined,
     });
 
-    expect(result).toMatchSnapshot(`
-      {
-        "property": null,
-        "duration": null,
-        "timing": {
-          "type": "keyword",
-          "value": "ease"
-        },
-        "delay": null
-      }
-    `);
+    expect(result).toMatchInlineSnapshot(`
+{
+  "delay": undefined,
+  "duration": undefined,
+  "property": undefined,
+  "timing": {
+    "type": "keyword",
+    "value": "ease",
+  },
+}
+`);
   });
 });

@@ -1,32 +1,29 @@
-import { forwardRef, useEffect, useState } from "react";
+import { forwardRef } from "react";
 import {
-  type CSS,
   css,
   canvasPointerEventsPropertyName,
 } from "@webstudio-is/design-system";
+import { useUnmount } from "~/shared/hook-utils/use-mount";
+import { $canvasIframeState } from "~/shared/nano-states";
 
 const iframeStyle = css({
   border: "none",
   pointerEvents: `var(${canvasPointerEventsPropertyName})`,
+  height: "100%",
+  width: "100%",
+  backgroundColor: "#fff",
 });
 
-type CanvasIframeProps = {
-  css: CSS;
-} & JSX.IntrinsicElements["iframe"];
+type CanvasIframeProps = JSX.IntrinsicElements["iframe"];
 
 export const CanvasIframe = forwardRef<HTMLIFrameElement, CanvasIframeProps>(
-  ({ css, ...rest }, ref) => {
-    // initialize canvas after builder is rendered
-    // and synchronizatio is initialized
-    const [isInitialized, setInitialized] = useState(false);
-    useEffect(() => {
-      setInitialized(true);
-    }, []);
-    return (
-      isInitialized && (
-        <iframe {...rest} ref={ref} className={iframeStyle({ css })} />
-      )
-    );
+  (props, ref) => {
+    useUnmount(() => {
+      // Unmount does't work inside iframe.
+      $canvasIframeState.set("idle");
+    });
+
+    return <iframe {...props} ref={ref} className={iframeStyle()} />;
   }
 );
 

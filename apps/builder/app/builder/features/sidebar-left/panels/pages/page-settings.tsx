@@ -28,6 +28,7 @@ import {
   DataSource,
   isLiteralExpression,
   type System,
+  documentTypes,
 } from "@webstudio-is/sdk";
 import {
   theme,
@@ -49,6 +50,8 @@ import {
   Link,
   buttonStyle,
   PanelBanner,
+  css,
+  Switch,
 } from "@webstudio-is/design-system";
 import {
   ChevronDoubleLeftIcon,
@@ -70,6 +73,7 @@ import {
   computeExpression,
   $dataSourceVariables,
   $publishedOrigin,
+  $project,
 } from "~/shared/nano-states";
 import {
   BindingControl,
@@ -103,6 +107,7 @@ import { Form } from "./form";
 import { $userPlanFeatures } from "~/builder/shared/nano-states";
 import type { UserPlanFeatures } from "~/shared/db/user-plan-features.server";
 import { useUnmount } from "~/shared/hook-utils/use-mount";
+import { Card } from "../marketplace/card";
 
 const fieldDefaultValues = {
   name: "Untitled",
@@ -111,18 +116,17 @@ const fieldDefaultValues = {
   isHomePage: false,
   title: `"Untitled"`,
   description: `""`,
-  excludePageFromSearch: `false`,
+  excludePageFromSearch: `true`,
   language: `""`,
   socialImageUrl: `""`,
   socialImageAssetId: "",
   status: `200`,
   redirect: `""`,
-  customMetas: [
-    {
-      property: "",
-      content: `""`,
-    },
-  ],
+  documentType: "html" as (typeof documentTypes)[number],
+  customMetas: [{ property: "", content: `""` }],
+  marketplaceInclude: false,
+  marketplaceCategory: "",
+  marketplaceThumbnailAssetId: "",
 };
 
 const fieldNames = Object.keys(
@@ -132,6 +136,15 @@ const fieldNames = Object.keys(
 type FieldName = (typeof fieldNames)[number];
 
 type Values = typeof fieldDefaultValues;
+
+type OnChange = (
+  event: {
+    [K in keyof Values]: {
+      field: K;
+      value: Values[K];
+    };
+  }[keyof Values]
+) => void;
 
 type Errors = {
   [fieldName in FieldName]?: string[];
@@ -188,6 +201,7 @@ const SharedPageValues = z.object({
   socialImageUrl: z.string().optional(),
   status: Status.optional(),
   redirect: z.optional(ProjectNewRedirectPath.or(EmptyString)),
+  documentType: z.optional(z.enum(documentTypes)),
   customMetas: z
     .array(
       z.object({
@@ -211,7 +225,6 @@ const validateValues = (
   // undefined page id means new page
   pageId: undefined | Page["id"],
   values: Values,
-  isHomePage: boolean,
   variableValues: Map<string, unknown>,
   userPlanFeatures: UserPlanFeatures
 ): Errors => {
@@ -233,7 +246,8 @@ const validateValues = (
       content: computeExpression(item.content, variableValues),
     })),
   };
-  const Validator = isHomePage ? HomePageValues : PageValues;
+
+  const Validator = values.isHomePage ? HomePageValues : PageValues;
   const parsedResult = Validator.safeParse(computedValues);
   const errors: Errors = {};
   if (parsedResult.success === false) {
@@ -290,8 +304,12 @@ const toFormValues = (
     language: page.meta.language ?? fieldDefaultValues.language,
     status: page.meta.status ?? fieldDefaultValues.status,
     redirect: page.meta.redirect ?? fieldDefaultValues.redirect,
+    documentType: page.meta.documentType ?? fieldDefaultValues.documentType,
     isHomePage,
     customMetas: page.meta.custom ?? fieldDefaultValues.customMetas,
+    marketplaceInclude: page.marketplace?.include ?? false,
+    marketplaceCategory: page.marketplace?.category ?? "",
+    marketplaceThumbnailAssetId: page.marketplace?.thumbnailAssetId ?? "",
   };
 };
 
@@ -572,6 +590,109 @@ const usePageUrl = (values: Values, systemDataSourceId?: DataSource["id"]) => {
   return `${publishedOrigin}${compiledPath}`;
 };
 
+const fieldsetStyle = css({
+  all: "unset",
+  display: "block",
+  "&:disabled": {
+    opacity: 0.4,
+  },
+});
+
+const MarketplaceSection = ({
+  values,
+  onChange,
+}: {
+  values: Values;
+  onChange: OnChange;
+}) => {
+  const excludeId = useId();
+  const categoryId = useId();
+  const categoryMeta = values.customMetas.find(
+    ({ property }) => property === "ws:category"
+  );
+  // @todo remove after all stores are migrated
+  const categoryFallback = String(
+    computeExpression(categoryMeta?.content ?? `""`, new Map())
+  );
+  const category = values.marketplaceCategory ?? categoryFallback ?? "Pages";
+  const assets = useStore($assets);
+  const thumbnailAsset = assets.get(values.marketplaceThumbnailAssetId);
+  const thumnailFallbackAsset = assets.get(values.socialImageAssetId);
+  return (
+    <Grid gap={2} css={{ py: theme.spacing[5], px: theme.spacing[8] }}>
+      <Label text="title">Marketplace</Label>
+      <Grid
+        flow="column"
+        gap={1}
+        justify="start"
+        align="center"
+        css={{ py: theme.spacing[2] }}
+      >
+        <Switch
+          id={excludeId}
+          checked={values.marketplaceInclude}
+          onCheckedChange={(value) =>
+            onChange({ field: "marketplaceInclude", value })
+          }
+        />
+        <Label htmlFor={excludeId}>Include in the marketplace</Label>
+      </Grid>
+      <Grid gap={1}>
+        <Label htmlFor={categoryId}>Category</Label>
+        <InputField
+          id={categoryId}
+          name="marketplaceCategory"
+          value={values.marketplaceCategory}
+          onChange={(event) =>
+            onChange({
+              field: "marketplaceCategory",
+              value: event.target.value,
+            })
+          }
+        />
+      </Grid>
+      <Grid gap={1} flow="column">
+        <ImageControl
+          onAssetIdChange={(value) =>
+            onChange({ field: "marketplaceThumbnailAssetId", value })
+          }
+        >
+          <Button color="neutral" css={{ justifySelf: "start" }}>
+            Choose thumbnail from assets
+          </Button>
+        </ImageControl>
+      </Grid>
+      {thumbnailAsset?.type === "image" && (
+        <ImageInfo
+          asset={thumbnailAsset}
+          onDelete={() =>
+            onChange({ field: "marketplaceThumbnailAssetId", value: "" })
+          }
+        />
+      )}
+      <Grid gap={1}>
+        <Label>Marketplace Preview</Label>
+        <Box
+          css={{
+            padding: theme.spacing[5],
+            borderRadius: theme.borderRadius[4],
+            border: `1px solid ${theme.colors.borderMain}`,
+            justifySelf: "start",
+          }}
+        >
+          <Grid gap={1} css={{ width: theme.spacing[30] }}>
+            {category && <Label text="title">{category}</Label>}
+            <Card
+              title={values.name}
+              image={thumbnailAsset ?? thumnailFallbackAsset}
+            />
+          </Grid>
+        </Box>
+      </Grid>
+    </Grid>
+  );
+};
+
 const FormFields = ({
   systemDataSourceId,
   autoSelect,
@@ -583,15 +704,9 @@ const FormFields = ({
   autoSelect?: boolean;
   errors: Errors;
   values: Values;
-  onChange: (
-    event: {
-      [K in keyof Values]: {
-        field: K;
-        value: Values[K];
-      };
-    }[keyof Values]
-  ) => void;
+  onChange: OnChange;
 }) => {
+  const project = useStore($project);
   const fieldIds = useIds(fieldNames);
   const assets = useStore($assets);
   const pages = useStore($pages);
@@ -652,6 +767,7 @@ const FormFields = ({
                     css={{
                       overflowWrap: "anywhere",
                       wordBreak: "break-all",
+                      my: 2,
                     }}
                   >
                     “{values.name}” is the home page
@@ -664,11 +780,26 @@ const FormFields = ({
                     css={{
                       overflowWrap: "anywhere",
                       wordBreak: "break-all",
+                      my: 2,
                     }}
                     color="subtle"
                   >
                     Move this page to the “{toTreeData(pages).root.name}” folder
                     to set it as your home page
+                  </Text>
+                </>
+              ) : values.documentType === "xml" ? (
+                <>
+                  <HomeIcon color={rawTheme.colors.foregroundSubtle} />
+                  <Text
+                    css={{
+                      overflowWrap: "anywhere",
+                      wordBreak: "break-all",
+                      my: 2,
+                    }}
+                    color="subtle"
+                  >
+                    XML pages cannot be set as the home page
                   </Text>
                 </>
               ) : (
@@ -755,6 +886,29 @@ const FormFields = ({
                   </Flex>
                 </PanelBanner>
               )}
+
+              {isFeatureEnabled("xmlElement") && (
+                <Grid gap={1}>
+                  <Label htmlFor={fieldIds.documentType}>Document Type</Label>
+                  <Select
+                    options={documentTypes}
+                    getValue={(docType: (typeof documentTypes)[number]) =>
+                      docType
+                    }
+                    getLabel={(docType: (typeof documentTypes)[number]) =>
+                      docType.toLocaleUpperCase()
+                    }
+                    value={values.documentType}
+                    disabled={values.isHomePage}
+                    onChange={(value) => {
+                      onChange({
+                        field: "documentType",
+                        value,
+                      });
+                    }}
+                  />
+                </Grid>
+              )}
             </>
           )}
         </Grid>
@@ -764,313 +918,330 @@ const FormFields = ({
         {/**
          * ----------------------========<<<Search Results>>>>========----------------------
          */}
-        <Grid gap={2} css={{ my: theme.spacing[5], mx: theme.spacing[8] }}>
-          <Grid gap={2}>
-            <Label text="title">Search</Label>
-            <Text color="subtle">
-              Optimize the way this page appears in search engine results pages.
-            </Text>
-            <Grid gap={1}>
-              <Label>Search Result Preview</Label>
-              <Box
-                css={{
-                  padding: theme.spacing[5],
-                  background: theme.colors.white,
-                  borderRadius: theme.borderRadius[4],
-                  border: `1px solid ${theme.colors.borderMain}`,
-                }}
-              >
+        <fieldset
+          disabled={values.documentType === "xml"}
+          className={fieldsetStyle()}
+        >
+          <Grid gap={2} css={{ my: theme.spacing[5], mx: theme.spacing[8] }}>
+            <Grid gap={2}>
+              <Label text="title">Search</Label>
+              <Text color="subtle">
+                Optimize the way this page appears in search engine results
+                pages.
+              </Text>
+              <Grid gap={1}>
+                <Label>Search Result Preview</Label>
                 <Box
                   css={{
-                    transformOrigin: "top left",
-                    transform: "scale(0.667)",
-                    width: 600,
-                    height: 80,
+                    padding: theme.spacing[5],
+                    background: theme.colors.white,
+                    borderRadius: theme.borderRadius[4],
+                    border: `1px solid ${theme.colors.borderMain}`,
                   }}
                 >
-                  <SearchPreview
-                    siteName={pages?.meta?.siteName ?? ""}
-                    faviconUrl={faviconUrl}
-                    pageUrl={pageUrl}
-                    titleLink={title}
-                    snippet={description}
-                  />
+                  <Box
+                    css={{
+                      transformOrigin: "top left",
+                      transform: "scale(0.667)",
+                      width: 600,
+                      height: 80,
+                    }}
+                  >
+                    <SearchPreview
+                      siteName={pages?.meta?.siteName ?? ""}
+                      faviconUrl={faviconUrl}
+                      pageUrl={pageUrl}
+                      titleLink={title}
+                      snippet={description}
+                    />
+                  </Box>
                 </Box>
-              </Box>
+              </Grid>
             </Grid>
-          </Grid>
 
-          <Grid gap={1}>
-            <Label htmlFor={fieldIds.title}>Title</Label>
-            <BindingControl>
-              {isFeatureEnabled("cms") && (
-                <BindingPopover
-                  scope={scope}
-                  aliases={aliases}
-                  variant={
-                    isLiteralExpression(values.title) ? "default" : "bound"
-                  }
-                  value={values.title}
-                  onChange={(value) => {
-                    onChange({
-                      field: "title",
-                      value,
-                    });
-                  }}
-                  onRemove={(evaluatedValue) => {
-                    onChange({
-                      field: "title",
-                      value: JSON.stringify(evaluatedValue),
-                    });
-                  }}
-                />
-              )}
-              <InputErrorsTooltip errors={errors.title}>
-                <InputField
-                  color={errors.title && "error"}
-                  id={fieldIds.title}
-                  name="title"
-                  placeholder="My awesome project - About"
-                  disabled={isLiteralExpression(values.title) === false}
-                  value={title}
-                  onChange={(event) => {
-                    onChange({
-                      field: "title",
-                      value: JSON.stringify(event.target.value),
-                    });
-                  }}
-                />
-              </InputErrorsTooltip>
-            </BindingControl>
-          </Grid>
-
-          <Grid gap={1}>
-            <Label htmlFor={fieldIds.description}>Description</Label>
-            <BindingControl>
-              {isFeatureEnabled("cms") && (
-                <BindingPopover
-                  scope={scope}
-                  aliases={aliases}
-                  variant={
-                    isLiteralExpression(values.description)
-                      ? "default"
-                      : "bound"
-                  }
-                  value={values.description}
-                  onChange={(value) => {
-                    onChange({
-                      field: "description",
-                      value,
-                    });
-                  }}
-                  onRemove={(evaluatedValue) => {
-                    onChange({
-                      field: "description",
-                      value: JSON.stringify(evaluatedValue),
-                    });
-                  }}
-                />
-              )}
-              <InputErrorsTooltip errors={errors.description}>
-                <TextArea
-                  state={errors.description && "invalid"}
-                  id={fieldIds.description}
-                  name="description"
-                  disabled={isLiteralExpression(values.description) === false}
-                  value={description}
-                  onChange={(value) => {
-                    onChange({
-                      field: "description",
-                      value: JSON.stringify(value),
-                    });
-                  }}
-                  autoGrow
-                  maxRows={10}
-                />
-              </InputErrorsTooltip>
-            </BindingControl>
-            <BindingControl>
-              <Grid
-                flow={"column"}
-                gap={1}
-                justify={"start"}
-                align={"center"}
-                css={{ py: theme.spacing[2] }}
-              >
+            <Grid gap={1}>
+              <Label htmlFor={fieldIds.title}>Title</Label>
+              <BindingControl>
                 {isFeatureEnabled("cms") && (
                   <BindingPopover
                     scope={scope}
                     aliases={aliases}
                     variant={
-                      isLiteralExpression(values.excludePageFromSearch)
-                        ? "default"
-                        : "bound"
+                      isLiteralExpression(values.title) ? "default" : "bound"
                     }
-                    value={values.excludePageFromSearch}
+                    value={values.title}
                     onChange={(value) => {
                       onChange({
-                        field: "excludePageFromSearch",
+                        field: "title",
                         value,
                       });
                     }}
                     onRemove={(evaluatedValue) => {
                       onChange({
-                        field: "excludePageFromSearch",
+                        field: "title",
                         value: JSON.stringify(evaluatedValue),
                       });
                     }}
                   />
                 )}
-                <Checkbox
-                  id={fieldIds.excludePageFromSearch}
-                  disabled={
-                    isLiteralExpression(values.excludePageFromSearch) === false
+                <InputErrorsTooltip errors={errors.title}>
+                  <InputField
+                    color={errors.title && "error"}
+                    id={fieldIds.title}
+                    name="title"
+                    placeholder="My awesome project - About"
+                    disabled={isLiteralExpression(values.title) === false}
+                    value={title}
+                    onChange={(event) => {
+                      onChange({
+                        field: "title",
+                        value: JSON.stringify(event.target.value),
+                      });
+                    }}
+                  />
+                </InputErrorsTooltip>
+              </BindingControl>
+            </Grid>
+
+            <Grid gap={1}>
+              <Label htmlFor={fieldIds.description}>Description</Label>
+              <BindingControl>
+                {isFeatureEnabled("cms") && (
+                  <BindingPopover
+                    scope={scope}
+                    aliases={aliases}
+                    variant={
+                      isLiteralExpression(values.description)
+                        ? "default"
+                        : "bound"
+                    }
+                    value={values.description}
+                    onChange={(value) => {
+                      onChange({
+                        field: "description",
+                        value,
+                      });
+                    }}
+                    onRemove={(evaluatedValue) => {
+                      onChange({
+                        field: "description",
+                        value: JSON.stringify(evaluatedValue),
+                      });
+                    }}
+                  />
+                )}
+                <InputErrorsTooltip errors={errors.description}>
+                  <TextArea
+                    color={errors.description ? "error" : undefined}
+                    id={fieldIds.description}
+                    name="description"
+                    disabled={isLiteralExpression(values.description) === false}
+                    value={description}
+                    onChange={(value) => {
+                      onChange({
+                        field: "description",
+                        value: JSON.stringify(value),
+                      });
+                    }}
+                    autoGrow
+                    maxRows={10}
+                  />
+                </InputErrorsTooltip>
+              </BindingControl>
+              <BindingControl>
+                <Grid
+                  flow={"column"}
+                  gap={1}
+                  justify={"start"}
+                  align={"center"}
+                  css={{ py: theme.spacing[2] }}
+                >
+                  {isFeatureEnabled("cms") && (
+                    <BindingPopover
+                      scope={scope}
+                      aliases={aliases}
+                      variant={
+                        isLiteralExpression(values.excludePageFromSearch)
+                          ? "default"
+                          : "bound"
+                      }
+                      value={values.excludePageFromSearch}
+                      onChange={(value) => {
+                        onChange({
+                          field: "excludePageFromSearch",
+                          value,
+                        });
+                      }}
+                      onRemove={(evaluatedValue) => {
+                        onChange({
+                          field: "excludePageFromSearch",
+                          value: JSON.stringify(evaluatedValue),
+                        });
+                      }}
+                    />
+                  )}
+                  <Checkbox
+                    id={fieldIds.excludePageFromSearch}
+                    disabled={
+                      isLiteralExpression(values.excludePageFromSearch) ===
+                      false
+                    }
+                    checked={excludePageFromSearch}
+                    onCheckedChange={() => {
+                      const newValue = !excludePageFromSearch;
+                      onChange({
+                        field: "excludePageFromSearch",
+                        value: newValue.toString(),
+                      });
+                    }}
+                  />
+
+                  <InputErrorsTooltip errors={errors.excludePageFromSearch}>
+                    <Label htmlFor={fieldIds.excludePageFromSearch}>
+                      Exclude this page from search results
+                    </Label>
+                  </InputErrorsTooltip>
+                </Grid>
+              </BindingControl>
+            </Grid>
+
+            {isFeatureEnabled("cms") && (
+              <LanguageField
+                errors={errors.language}
+                value={values.language}
+                onChange={(value) => onChange({ field: "language", value })}
+              />
+            )}
+          </Grid>
+
+          <Separator />
+
+          {/**
+           * ----------------------========<<<Social Sharing>>>>========----------------------
+           */}
+          <Grid gap={2} css={{ my: theme.spacing[5], mx: theme.spacing[8] }}>
+            <Label htmlFor={fieldIds.socialImageAssetId} text="title">
+              Social Image
+            </Label>
+            <Text color="subtle">
+              This image appears when you share a link to this page on social
+              media sites. If no image is set here, the Social Image set in the
+              Project Settings will be used. The optimal dimensions for the
+              image are 1200x630 px or larger with a 1.91:1 aspect ratio.
+            </Text>
+            {isFeatureEnabled("cms") && (
+              <BindingControl>
+                <BindingPopover
+                  scope={scope}
+                  aliases={aliases}
+                  variant={
+                    isLiteralExpression(values.socialImageUrl)
+                      ? "default"
+                      : "bound"
                   }
-                  checked={excludePageFromSearch}
-                  onCheckedChange={() => {
-                    const newValue = !excludePageFromSearch;
+                  value={values.socialImageUrl}
+                  onChange={(value) => {
                     onChange({
-                      field: "excludePageFromSearch",
-                      value: newValue.toString(),
+                      field: "socialImageUrl",
+                      value,
+                    });
+                  }}
+                  onRemove={(evaluatedValue) => {
+                    onChange({
+                      field: "socialImageUrl",
+                      value: JSON.stringify(evaluatedValue),
                     });
                   }}
                 />
-
-                <InputErrorsTooltip errors={errors.excludePageFromSearch}>
-                  <Label htmlFor={fieldIds.excludePageFromSearch}>
-                    Exclude this page from search results
-                  </Label>
+                <InputErrorsTooltip errors={errors.socialImageUrl}>
+                  <InputField
+                    placeholder="https://www.url.com"
+                    disabled={
+                      isLiteralExpression(values.socialImageUrl) === false
+                    }
+                    color={errors.socialImageUrl && "error"}
+                    value={socialImageUrl}
+                    onChange={(event) => {
+                      onChange({
+                        field: "socialImageUrl",
+                        value: JSON.stringify(event.target.value),
+                      });
+                      onChange({ field: "socialImageAssetId", value: "" });
+                    }}
+                  />
                 </InputErrorsTooltip>
-              </Grid>
-            </BindingControl>
-          </Grid>
-
-          {isFeatureEnabled("cms") && (
-            <LanguageField
-              errors={errors.language}
-              value={values.language}
-              onChange={(value) => onChange({ field: "language", value })}
-            />
-          )}
-        </Grid>
-
-        <Separator />
-
-        {/**
-         * ----------------------========<<<Social Sharing>>>>========----------------------
-         */}
-        <Grid gap={2} css={{ my: theme.spacing[5], mx: theme.spacing[8] }}>
-          <Label htmlFor={fieldIds.socialImageAssetId} text="title">
-            Social Image
-          </Label>
-          <Text color="subtle">
-            This image appears when you share a link to this page on social
-            media sites. If no image is set here, the Social Image set in the
-            Project Settings will be used. The optimal dimensions for the image
-            are 1200x630 px or larger with a 1.91:1 aspect ratio.
-          </Text>
-          {isFeatureEnabled("cms") && (
-            <BindingControl>
-              <BindingPopover
-                scope={scope}
-                aliases={aliases}
-                variant={
-                  isLiteralExpression(values.socialImageUrl)
-                    ? "default"
-                    : "bound"
-                }
-                value={values.socialImageUrl}
-                onChange={(value) => {
+              </BindingControl>
+            )}
+            <Grid gap={1} flow={"column"}>
+              <ImageControl
+                onAssetIdChange={(socialImageAssetId) => {
                   onChange({
-                    field: "socialImageUrl",
-                    value,
+                    field: "socialImageAssetId",
+                    value: socialImageAssetId,
                   });
+                  onChange({ field: "socialImageUrl", value: "" });
                 }}
-                onRemove={(evaluatedValue) => {
+              >
+                <Button
+                  id={fieldIds.socialImageAssetId}
+                  css={{ justifySelf: "start" }}
+                  color="neutral"
+                >
+                  Choose Image From Assets
+                </Button>
+              </ImageControl>
+            </Grid>
+
+            {socialImageAsset?.type === "image" && (
+              <ImageInfo
+                asset={socialImageAsset}
+                onDelete={() => {
                   onChange({
-                    field: "socialImageUrl",
-                    value: JSON.stringify(evaluatedValue),
+                    field: "socialImageAssetId",
+                    value: "",
                   });
                 }}
               />
-              <InputErrorsTooltip errors={errors.socialImageUrl}>
-                <InputField
-                  placeholder="https://www.url.com"
-                  disabled={
-                    isLiteralExpression(values.socialImageUrl) === false
-                  }
-                  color={errors.socialImageUrl && "error"}
-                  value={socialImageUrl}
-                  onChange={(event) => {
-                    onChange({
-                      field: "socialImageUrl",
-                      value: JSON.stringify(event.target.value),
-                    });
-                    onChange({ field: "socialImageAssetId", value: "" });
-                  }}
-                />
-              </InputErrorsTooltip>
-            </BindingControl>
-          )}
-          <Grid gap={1} flow={"column"}>
-            <ImageControl
-              onAssetIdChange={(socialImageAssetId) => {
-                onChange({
-                  field: "socialImageAssetId",
-                  value: socialImageAssetId,
-                });
-                onChange({ field: "socialImageUrl", value: "" });
-              }}
-            >
-              <Button
-                id={fieldIds.socialImageAssetId}
-                css={{ justifySelf: "start" }}
-                color="neutral"
-              >
-                Choose Image From Assets
-              </Button>
-            </ImageControl>
+            )}
+            <div />
+            <SocialPreview
+              ogImageUrl={
+                socialImageAsset?.type === "image"
+                  ? socialImageAsset.name
+                  : socialImageUrl
+              }
+              ogUrl={pageUrl}
+              ogTitle={title}
+              ogDescription={description}
+            />
           </Grid>
 
-          {socialImageAsset?.type === "image" && (
-            <ImageInfo
-              asset={socialImageAsset}
-              onDelete={() => {
-                onChange({
-                  field: "socialImageAssetId",
-                  value: "",
-                });
-              }}
-            />
-          )}
-          <div />
-          <SocialPreview
-            ogImageUrl={
-              socialImageAsset?.type === "image"
-                ? socialImageAsset.name
-                : socialImageUrl
-            }
-            ogUrl={pageUrl}
-            ogTitle={title}
-            ogDescription={description}
-          />
-        </Grid>
+          <Separator />
 
-        <Separator />
+          <InputErrorsTooltip errors={errors.customMetas}>
+            <div>
+              <CustomMetadata
+                customMetas={values.customMetas}
+                onChange={(customMetas) => {
+                  onChange({
+                    field: "customMetas",
+                    value: customMetas,
+                  });
+                }}
+              />
+            </div>
+          </InputErrorsTooltip>
+        </fieldset>
 
-        <InputErrorsTooltip errors={errors.customMetas}>
-          <div>
-            <CustomMetadata
-              customMetas={values.customMetas}
-              onChange={(customMetas) => {
-                onChange({
-                  field: "customMetas",
-                  value: customMetas,
-                });
-              }}
-            />
-          </div>
-        </InputErrorsTooltip>
+        {(project?.marketplaceApprovalStatus === "PENDING" ||
+          project?.marketplaceApprovalStatus === "APPROVED" ||
+          project?.marketplaceApprovalStatus === "REJECTED") && (
+          <>
+            <Separator />
+            <MarketplaceSection values={values} onChange={onChange} />
+          </>
+        )}
+
         <Box css={{ height: theme.spacing[10] }} />
       </ScrollArea>
     </Grid>
@@ -1122,7 +1293,6 @@ export const NewPageSettings = ({
     pages,
     undefined,
     values,
-    false,
     variableValues,
     userPlanFeatures
   );
@@ -1301,8 +1471,31 @@ const updatePage = (pageId: Page["id"], values: Partial<Values>) => {
       page.meta.custom = values.customMetas;
     }
 
+    if (values.documentType !== undefined) {
+      page.meta.documentType = values.documentType;
+    }
+
     if (values.parentFolderId !== undefined) {
       registerFolderChildMutable(folders, page.id, values.parentFolderId);
+    }
+
+    if (values.marketplaceInclude !== undefined) {
+      page.marketplace ??= {};
+      page.marketplace.include = values.marketplaceInclude;
+    }
+    if (values.marketplaceCategory !== undefined) {
+      page.marketplace ??= {};
+      page.marketplace.category =
+        values.marketplaceCategory.length > 0
+          ? values.marketplaceCategory
+          : undefined;
+    }
+    if (values.marketplaceThumbnailAssetId !== undefined) {
+      page.marketplace ??= {};
+      page.marketplace.thumbnailAssetId =
+        values.marketplaceThumbnailAssetId.length > 0
+          ? values.marketplaceThumbnailAssetId
+          : undefined;
     }
   };
 
@@ -1311,17 +1504,29 @@ const updatePage = (pageId: Page["id"], values: Partial<Values>) => {
       return;
     }
 
+    if (pages.homePage.id === pageId) {
+      updatePageMutable(pages.homePage, values, pages.folders);
+    }
+
+    const pageToUpdate = pages.pages.find((page) => page.id === pageId);
+
+    if (pageToUpdate !== undefined) {
+      updatePageMutable(pageToUpdate, values, pages.folders);
+    }
+
     // swap home page
     if (values.isHomePage && pages.homePage.id !== pageId) {
       const newHomePageIndex = pages.pages.findIndex(
         (page) => page.id === pageId
       );
+
       if (newHomePageIndex === -1) {
         throw new Error(`Page with id ${pageId} not found`);
       }
 
-      const oldHomePage = pages.homePage;
-      pages.homePage = pages.pages[newHomePageIndex];
+      const oldHomePage = pages.homePage as (typeof pages.pages)[0];
+
+      pages.homePage = pages.pages[newHomePageIndex] as typeof pages.homePage;
 
       pages.homePage.path = "";
 
@@ -1352,15 +1557,6 @@ const updatePage = (pageId: Page["id"], values: Partial<Values>) => {
 
       rootFolder.children[childIndexOfHome] = rootFolder.children[0];
       rootFolder.children[0] = pages.homePage.id;
-    }
-
-    if (pages.homePage.id === pageId) {
-      updatePageMutable(pages.homePage, values, pages.folders);
-    }
-    for (const page of pages.pages) {
-      if (page.id === pageId) {
-        updatePageMutable(page, values, pages.folders);
-      }
     }
   });
 };
@@ -1394,7 +1590,6 @@ export const PageSettings = ({
     pages,
     pageId,
     values,
-    values.isHomePage,
     variableValues,
     userPlanFeatures
   );
@@ -1449,8 +1644,8 @@ export const PageSettings = ({
   const hanldeDelete = () => {
     updateWebstudioData((data) => {
       deletePageMutable(pageId, data);
-      onDelete();
     });
+    onDelete();
   };
 
   if (page === undefined) {

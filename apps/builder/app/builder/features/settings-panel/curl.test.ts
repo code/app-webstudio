@@ -1,5 +1,5 @@
 import { expect, test } from "@jest/globals";
-import { generateCurl, parseCurl } from "./curl";
+import { generateCurl, parseCurl, type CurlRequest } from "./curl";
 
 test("support url", () => {
   const result = {
@@ -12,9 +12,9 @@ test("support url", () => {
   expect(parseCurl(`curl 'https://my-url/hello-world'`)).toEqual(result);
 });
 
-test("support multiline", () => {
+test("support multiline command with backslashes", () => {
   expect(
-    parseCurl(`curl \
+    parseCurl(`curl \\
       'https://my-url/hello-world'
   `)
   ).toEqual({
@@ -114,9 +114,7 @@ test("support text body with explicit method", () => {
 test("support json body", () => {
   expect(
     parseCurl(
-      `curl https://my-url/hello-world \
-        --header 'content-type: application/json' \
-        --data '{"param":"value"}'`
+      `curl https://my-url/hello-world --header 'content-type: application/json' --data '{"param":"value"}'`
     )
   ).toEqual({
     url: "https://my-url/hello-world",
@@ -124,6 +122,10 @@ test("support json body", () => {
     headers: [{ name: "content-type", value: "application/json" }],
     body: { param: "value" },
   });
+});
+
+test("avoid failing on syntax error", () => {
+  expect(parseCurl("curl \\")).toEqual(undefined);
 });
 
 test("generate curl with json body", () => {
@@ -168,4 +170,25 @@ test("generate curl without body", () => {
 "curl "https://my-url.com" \\
   --request post"
 `);
+});
+
+test("multiline graphql is idempotent", () => {
+  const request: CurlRequest = {
+    url: "https://eu-central-1-shared-euc1-02.cdn.hygraph.com/content/clorhpxi8qx7r01t6hfp1b5f6/master",
+    method: "post",
+    headers: [{ name: "Content-Type", value: "application/json" }],
+    body: {
+      query: `
+        query Posts {
+          posts {
+            slug
+            title
+            updatedAt
+            excerpt
+          }
+        }
+      `,
+    },
+  };
+  expect(parseCurl(generateCurl(request))).toEqual(request);
 });

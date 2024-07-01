@@ -15,6 +15,7 @@ export const propsToArgTypes = (
       })
       // Exclude webstudio builder props see react-sdk/src/tree/webstudio-component.tsx
       .filter(([propName]) => propName.startsWith("data-ws-") === false)
+      .filter(([propName]) => propName.startsWith("$webstudio") === false)
       // Exclude props that are in the exclude list
       .filter(([propName]) => exclude.includes(propName) === false)
       .map(([propName, propItem]) => {
@@ -86,6 +87,8 @@ export const getArgType = (propItem: PropItem): PropMeta | undefined => {
       case "number":
         return makePropMeta("number", "number");
       case "string":
+        return makePropMeta("string", "text");
+      case "string | number | readonly string[]":
         return makePropMeta("string", "text");
       case "string | number":
       case "number | string":

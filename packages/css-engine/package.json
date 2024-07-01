@@ -1,6 +1,6 @@
 {
   "name": "@webstudio-is/css-engine",
-  "version": "0.145.0",
+  "version": "0.168.0",
   "description": "CSS Renderer for Webstudio",
   "author": "Webstudio <github@webstudio.is>",
   "homepage": "https://webstudio.is",
@@ -11,37 +11,28 @@
     "dev": "rm -rf lib && esbuild 'src/**/*.ts' 'src/**/*.tsx' --outdir=lib --watch",
     "build": "rm -rf lib && esbuild src/index.ts --outdir=lib --bundle --format=esm --packages=external",
     "dts": "tsc --project tsconfig.dts.json",
-    "test": "NODE_OPTIONS=--experimental-vm-modules jest",
-    "storybook:dev": "storybook dev -p 6006",
-    "storybook:build": "storybook build"
+    "test": "NODE_OPTIONS=--experimental-vm-modules jest"
   },
   "dependencies": {
     "@emotion/hash": "^0.9.1",
     "@webstudio-is/error-utils": "workspace:*",
     "@webstudio-is/fonts": "workspace:*",
-    "hyphenate-style-name": "^1.0.4",
     "zod": "^3.22.4"
   },
   "devDependencies": {
     "@jest/globals": "^29.7.0",
-    "@storybook/addon-essentials": "^7.4.0",
-    "@storybook/addon-links": "^7.4.0",
-    "@storybook/react": "^7.4.0",
-    "@types/hyphenate-style-name": "^1.0.0",
     "@types/react": "^18.2.70",
     "@types/react-dom": "^18.2.25",
     "@webstudio-is/jest-config": "workspace:*",
-    "@webstudio-is/storybook-config": "workspace:*",
     "@webstudio-is/tsconfig": "workspace:*",
     "react": "18.3.0-canary-14898b6a9-20240318",
     "react-dom": "18.3.0-canary-14898b6a9-20240318",
-    "typescript": "5.4.5"
+    "typescript": "5.5.2"
   },
   "exports": {
     "webstudio": "./src/index.ts",
     "types": "./lib/types/index.d.ts",
-    "import": "./lib/index.js",
-    "require": "./lib/index.js"
+    "import": "./lib/index.js"
   },
   "files": [
     "lib/*",

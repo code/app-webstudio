@@ -1,7 +1,9 @@
 import { useState } from "react";
 import { useStore } from "@nanostores/react";
+import { matchSorter } from "match-sorter";
 import type { Instance } from "@webstudio-is/sdk";
 import { theme, Combobox, Separator, Flex } from "@webstudio-is/design-system";
+import { descendantComponent } from "@webstudio-is/react-sdk";
 import {
   $propValuesByInstanceSelector,
   $propsIndex,
@@ -17,7 +19,6 @@ import {
 } from "./use-props-logic";
 import { Row } from "../shared";
 import { serverSyncStore } from "~/shared/sync";
-import { matchSorter } from "match-sorter";
 
 const itemToString = (item: NameAndLabel | null) =>
   item?.label || item?.name || "";
@@ -61,27 +62,22 @@ const renderProperty = (
     onDelete: () => {
       if (prop) {
         logic.handleDelete(prop);
+        if (component === "Image" && propName === "src") {
+          logic.handleDeleteByPropName("width");
+          logic.handleDeleteByPropName("height");
+        }
       }
     },
-    onChange: (propValue, asset) => {
+    onChange: (propValue) => {
       logic.handleChange({ prop, propName }, propValue);
 
-      // @todo: better way to do this?
       if (
         component === "Image" &&
         propName === "src" &&
-        asset &&
-        "width" in asset.meta &&
-        "height" in asset.meta
+        propValue.type === "asset"
       ) {
-        logic.handleChangeByPropName("width", {
-          value: asset.meta.width,
-          type: "number",
-        });
-        logic.handleChangeByPropName("height", {
-          value: asset.meta.height,
-          type: "number",
-        });
+        logic.handleChangeByPropName("width", propValue);
+        logic.handleChangeByPropName("height", propValue);
       }
     },
   });
@@ -222,11 +218,16 @@ export const PropsSectionContainer = ({
   }
 
   return (
-    <PropsSection
-      propsLogic={logic}
-      propValues={propValues ?? new Map()}
-      component={instance.component}
-      instanceId={instance.id}
-    />
+    <fieldset
+      style={{ display: "contents" }}
+      disabled={instance.component === descendantComponent}
+    >
+      <PropsSection
+        propsLogic={logic}
+        propValues={propValues ?? new Map()}
+        component={instance.component}
+        instanceId={instance.id}
+      />
+    </fieldset>
   );
 };

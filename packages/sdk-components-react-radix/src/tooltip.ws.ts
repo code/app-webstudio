@@ -54,23 +54,7 @@ export const metaTooltip: WsComponentMeta = {
     {
       type: "instance",
       component: "Tooltip",
-      variables: {
-        tooltipOpen: { initialValue: false },
-      },
-      props: [
-        {
-          type: "expression",
-          name: "open",
-          code: "tooltipOpen",
-        },
-        {
-          name: "onOpenChange",
-          type: "action",
-          value: [
-            { type: "execute", args: ["open"], code: `tooltipOpen = open` },
-          ],
-        },
-      ],
+      props: [],
       children: [
         {
           type: "instance",
@@ -80,7 +64,7 @@ export const metaTooltip: WsComponentMeta = {
               type: "instance",
               component: "Button",
               styles: getButtonStyles("outline"),
-              children: [{ type: "text", value: "Button" }],
+              children: [{ type: "text", value: "Button", placeholder: true }],
             },
           ],
         },
@@ -106,7 +90,13 @@ export const metaTooltip: WsComponentMeta = {
             {
               type: "instance",
               component: "Text",
-              children: [{ type: "text", value: "The text you can edit" }],
+              children: [
+                {
+                  type: "text",
+                  value: "The text you can edit",
+                  placeholder: true,
+                },
+              ],
             },
           ],
         },

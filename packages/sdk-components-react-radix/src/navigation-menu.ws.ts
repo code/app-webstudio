@@ -135,6 +135,7 @@ const navItem = (
               {
                 type: "text",
                 value: props.title,
+                placeholder: true,
               },
             ],
           },
@@ -154,6 +155,7 @@ const navItem = (
               {
                 type: "text",
                 value: props.description,
+                placeholder: true,
               },
             ],
           },
@@ -197,7 +199,7 @@ const menuItemLink = (props: {
               tc.noUnderline(),
               tc.text("current"),
             ].flat(),
-            children: [{ type: "text", value: props.title }],
+            children: [{ type: "text", value: props.title, placeholder: true }],
           },
         ],
       },
@@ -238,7 +240,9 @@ const menuItem = (props: {
               {
                 type: "instance",
                 component: "Text",
-                children: [{ type: "text", value: props.title }],
+                children: [
+                  { type: "text", value: props.title, placeholder: true },
+                ],
               },
               {
                 type: "instance",
@@ -314,23 +318,7 @@ export const metaNavigationMenu: WsComponentMeta = {
     {
       type: "instance",
       component: "NavigationMenu",
-      variables: {
-        menuValue: { initialValue: "" },
-      },
-      props: [
-        { type: "expression", name: "value", code: "menuValue" },
-        {
-          name: "onValueChange",
-          type: "action",
-          value: [
-            {
-              type: "execute",
-              args: ["value"],
-              code: `menuValue = value`,
-            },
-          ],
-        },
-      ],
+      props: [],
       // relative
       // Omiting this: z-10 flex max-w-max flex-1 items-center justify-center
       styles: [tc.relative(), tc.maxW("max")].flat(),
@@ -368,6 +356,7 @@ export const metaNavigationMenu: WsComponentMeta = {
                     {
                       type: "text",
                       value: "",
+                      placeholder: true,
                     },
                   ],
                 },

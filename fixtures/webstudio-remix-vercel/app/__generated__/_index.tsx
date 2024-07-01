@@ -16,6 +16,8 @@ import {
   Text as Text,
 } from "@webstudio-is/sdk-components-react";
 
+export const siteName = "KittyGuardedZone";
+
 export const favIconAsset: ImageAsset | undefined = {
   id: "88d5e2ff-b8f2-4899-aaf8-dde4ade6da10",
   name: "DALL_E_2023-10-30_12.39.46_-_Photo_logo_with_a_bold_cat_silhouette_centered_on_a_contrasting_background_designed_for_clarity_at_small_32x32_favicon_resolution_00h6cEA8u2pJRvVJv7hRe.png",
@@ -45,29 +47,53 @@ export const pageFontAssets: FontAsset[] = [];
 
 export const pageBackgroundImageAssets: ImageAsset[] = [];
 
+const Script = ({ children, ...props }: Record<string, string | boolean>) => {
+  if (children == null) {
+    return <script {...props} />;
+  }
+
+  return <script {...props} dangerouslySetInnerHTML={{ __html: children }} />;
+};
+const Style = ({ children, ...props }: Record<string, string | boolean>) => {
+  if (children == null) {
+    return <style {...props} />;
+  }
+
+  return <style {...props} dangerouslySetInnerHTML={{ __html: children }} />;
+};
+
+export const CustomCode = () => {
+  return (
+    <>
+      <Script>{"console.log('KittyGuardedZone')"}</Script>
+      {"\n"}
+    </>
+  );
+};
+
 const Page = ({}: { system: any }) => {
   return (
     <Body
       data-ws-id="On9cvWCxr5rdZtY9O1Bv0"
       data-ws-component="Body"
-      className="c198lioj cr65sqc c1ucc9vx c1dhla2v"
+      className="cielobv"
     >
       <Heading
         data-ws-id="nVMWvMsaLCcb0o1wuNQgg"
         data-ws-component="Heading"
-        className="c1knjlal"
+        className="ceva767"
       >
         {"DO NOT TOUCH THIS PROJECT, IT'S USED FOR FIXTURES"}
       </Heading>
       <Box
         data-ws-id="f0kF-WmL7DQg7MSyRvqY1"
         data-ws-component="Box"
-        className="c13v7j50 c1ubj2iz clu0378"
+        className="c13v7j50 cqkqnmd cv6wa71"
       >
         <Box
           data-ws-id="5XDbqPrZDeCwq4YJ3CHsc"
           data-ws-component="Box"
-          className="c15heboa c1njwnl4 cxq4cho cn5joda"
+          className="c1t3ybra c1qxdkbn c1ogzcge cv3kvac"
         >
           <Heading
             data-ws-id="oLXYe1UQiVMhVnZGvJSMr"
@@ -125,7 +151,7 @@ const Page = ({}: { system: any }) => {
         <Box
           data-ws-id="qPnkiFGDj8dITWb1kmpGl"
           data-ws-component="Box"
-          className="c15heboa c1njwnl4 cxq4cho cn5joda"
+          className="c1t3ybra c1qxdkbn c1ogzcge cv3kvac"
         >
           <Image
             data-ws-id="pX1ovPI7NdC0HRjkw6Kpw"
@@ -133,7 +159,7 @@ const Page = ({}: { system: any }) => {
             src={
               "/assets/_937084ed-a798-49fe-8664-df93a2af605e_uiBk3o6UWdqolyakMvQJ9.jpeg"
             }
-            className="czgliev"
+            className="c1czoo99"
           />
         </Box>
       </Box>

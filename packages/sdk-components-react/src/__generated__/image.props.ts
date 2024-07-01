@@ -443,6 +443,7 @@ export const props: Record<string, PropMeta> = {
     description: "Indicates the preferred method to decode the image.",
   },
   defaultChecked: { required: false, control: "boolean", type: "boolean" },
+  defaultValue: { required: false, control: "text", type: "string" },
   dir: {
     required: false,
     control: "text",
@@ -527,7 +528,12 @@ export const props: Record<string, PropMeta> = {
       "Determines whether the image will load as soon as possible (Eager), or when it scrolls into view (Lazy). Lazy loading is a great option for pages with many images because it can significantly reduce the time it takes for the page to load initially.",
   },
   nonce: { required: false, control: "text", type: "string" },
-  optimize: { required: false, control: "boolean", type: "boolean" },
+  optimize: {
+    required: false,
+    control: "boolean",
+    type: "boolean",
+    defaultValue: true,
+  },
   prefix: { required: false, control: "text", type: "string" },
   property: { required: false, control: "text", type: "string" },
   quality: { required: false, control: "number", type: "number" },

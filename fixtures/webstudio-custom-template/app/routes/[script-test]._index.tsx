@@ -11,9 +11,14 @@ import {
 } from "@remix-run/server-runtime";
 import { useLoaderData } from "@remix-run/react";
 import { ReactSdkContext } from "@webstudio-is/react-sdk";
-import { n8nHandler, getFormId } from "@webstudio-is/form-handlers";
+import {
+  n8nHandler,
+  formIdFieldName,
+  formBotFieldName,
+} from "@webstudio-is/form-handlers";
 import {
   Page,
+  siteName,
   favIconAsset,
   socialImageAsset,
   pageFontAssets,
@@ -25,8 +30,7 @@ import {
   getPageMeta,
   getRemixParams,
   projectId,
-  user,
-  projectMeta,
+  contactEmail,
 } from "../__generated__/[script-test]._index.server";
 
 import css from "../__generated__/index.css?url";
@@ -70,7 +74,6 @@ export const loader = async (arg: LoaderFunctionArgs) => {
       system,
       resources,
       pageMeta,
-      projectMeta,
     },
     // No way for current information to change, so add cache for 10 minutes
     // In case of CRM Data, this should be set to 0
@@ -78,7 +81,6 @@ export const loader = async (arg: LoaderFunctionArgs) => {
       status: pageMeta.status,
       headers: {
         "Cache-Control": "public, max-age=600",
-        "x-ws-language": pageMeta.language ?? "en",
       },
     }
   );
@@ -87,7 +89,6 @@ export const loader = async (arg: LoaderFunctionArgs) => {
 export const headers: HeadersFunction = ({ loaderHeaders }) => {
   return {
     "Cache-Control": "public, max-age=0, must-revalidate",
-    "x-ws-language": loaderHeaders.get("x-ws-language") ?? "",
   };
 };
 
@@ -96,7 +97,7 @@ export const meta: MetaFunction<typeof loader> = ({ data }) => {
   if (data === undefined) {
     return metas;
   }
-  const { pageMeta, projectMeta } = data;
+  const { pageMeta } = data;
 
   if (data.url) {
     metas.push({
@@ -118,16 +119,16 @@ export const meta: MetaFunction<typeof loader> = ({ data }) => {
 
   const origin = `https://${data.host}`;
 
-  if (projectMeta?.siteName) {
+  if (siteName) {
     metas.push({
       property: "og:site_name",
-      content: projectMeta.siteName,
+      content: siteName,
     });
     metas.push({
       "script:ld+json": {
         "@context": "https://schema.org",
         "@type": "WebSite",
-        name: projectMeta.siteName,
+        name: siteName,
         url: origin,
       },
     });
@@ -185,23 +186,14 @@ export const links: LinksFunction = () => {
       rel: "icon",
       href: imageLoader({
         src: favIconAsset.name,
-        width: 128,
+        // width,height must be multiple of 48 https://developers.google.com/search/docs/appearance/favicon-in-search
+        width: 144,
+        height: 144,
+        fit: "pad",
         quality: 100,
         format: "auto",
       }),
       type: undefined,
-    });
-  } else {
-    result.push({
-      rel: "icon",
-      href: "/favicon.ico",
-      type: "image/x-icon",
-    });
-
-    result.push({
-      rel: "shortcut icon",
-      href: "/favicon.ico",
-      type: "image/x-icon",
     });
   }
 
@@ -241,72 +233,90 @@ const getMethod = (value: string | undefined) => {
   }
 };
 
-export const action = async ({ request, context }: ActionFunctionArgs) => {
-  const formData = await request.formData();
-
-  const formId = getFormId(formData);
-  if (formId === undefined) {
-    // We're throwing rather than returning { success: false }
-    // because this isn't supposed to happen normally: bug or malicious user
-    throw json("Form not found", { status: 404 });
-  }
-
-  const formProperties = formsProperties.get(formId);
-
-  // form properties are not defined when defaults are used
-  const { action, method } = formProperties ?? {};
-
-  const email = user?.email;
-
-  if (email == null) {
-    return { success: false };
-  }
-
-  // wrapped in try/catch just in cases new URL() throws
-  // (should not happen)
-  let pageUrl: URL;
+export const action = async ({
+  request,
+  context,
+}: ActionFunctionArgs): Promise<
+  { success: true } | { success: false; errors: string[] }
+> => {
   try {
-    pageUrl = new URL(request.url);
-    pageUrl.host = getRequestHost(request);
-  } catch {
-    return { success: false };
-  }
+    const formData = await request.formData();
 
-  if (action !== undefined) {
-    try {
-      // Test that action is full URL
-      new URL(action);
-    } catch {
-      return json(
-        {
-          success: false,
-          error: "Invalid action URL, must be valid http/https protocol",
-        },
-        { status: 200 }
-      );
+    const formId = formData.get(formIdFieldName);
+
+    if (formId == null || typeof formId !== "string") {
+      throw new Error("No form id in FormData");
     }
+
+    const formBotValue = formData.get(formBotFieldName);
+
+    if (formBotValue == null || typeof formBotValue !== "string") {
+      throw new Error("Form bot field not found");
+    }
+
+    const submitTime = parseInt(formBotValue, 16);
+    // Assumes that the difference between the server time and the form submission time,
+    // including any client-server time drift, is within a 5-minute range.
+    // Note: submitTime might be NaN because formBotValue can be any string used for logging purposes.
+    // Example: `formBotValue: jsdom`, or `formBotValue: headless-env`
+    if (
+      Number.isNaN(submitTime) ||
+      Math.abs(Date.now() - submitTime) > 1000 * 60 * 5
+    ) {
+      throw new Error(`Form bot value invalid ${formBotValue}`);
+    }
+
+    const formProperties = formsProperties.get(formId);
+
+    // form properties are not defined when defaults are used
+    const { action, method } = formProperties ?? {};
+
+    if (contactEmail === undefined) {
+      throw new Error("Contact email not found");
+    }
+
+    const pageUrl = new URL(request.url);
+    pageUrl.host = getRequestHost(request);
+
+    if (action !== undefined) {
+      try {
+        // Test that action is full URL
+        new URL(action);
+      } catch {
+        throw new Error(
+          "Invalid action URL, must be valid http/https protocol"
+        );
+      }
+    }
+
+    const formInfo = {
+      formData,
+      projectId,
+      action: action ?? null,
+      method: getMethod(method),
+      pageUrl: pageUrl.toString(),
+      toEmail: contactEmail,
+      fromEmail: pageUrl.hostname + "@webstudio.email",
+    } as const;
+
+    const result = await n8nHandler({
+      formInfo,
+      hookUrl: context.N8N_FORM_EMAIL_HOOK,
+    });
+
+    return result;
+  } catch (error) {
+    console.error(error);
+
+    return {
+      success: false,
+      errors: [error instanceof Error ? error.message : "Unknown error"],
+    };
   }
-
-  const formInfo = {
-    formData,
-    projectId,
-    action: action ?? null,
-    method: getMethod(method),
-    pageUrl: pageUrl.toString(),
-    toEmail: email,
-    fromEmail: pageUrl.hostname + "@webstudio.email",
-  } as const;
-
-  const result = await n8nHandler({
-    formInfo,
-    hookUrl: context.N8N_FORM_EMAIL_HOOK,
-  });
-
-  return result;
 };
 
 const Outlet = () => {
-  const { system, resources } = useLoaderData<typeof loader>();
+  const { system, resources, url } = useLoaderData<typeof loader>();
   return (
     <ReactSdkContext.Provider
       value={{
@@ -316,7 +326,8 @@ const Outlet = () => {
         resources,
       }}
     >
-      <Page system={system} />
+      {/* Use the URL as the key to force scripts in HTML Embed to reload on dynamic pages */}
+      <Page key={url} system={system} />
     </ReactSdkContext.Provider>
   );
 };

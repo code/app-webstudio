@@ -11,7 +11,7 @@ import {
   $selectedPage,
   updateSystem,
 } from "~/shared/nano-states";
-import { switchPage } from "~/shared/pages";
+import { savePathInHistory, switchPage } from "~/shared/pages";
 
 const isAbsoluteUrl = (href: string) => {
   try {
@@ -39,10 +39,11 @@ const switchPageAndUpdateSystem = (href: string, formData?: FormData) => {
   if (pages === undefined) {
     return;
   }
-  if (href === "") {
+  // preserve pathname when not specified in href/action
+  if (href === "" || href.startsWith("?") || href.startsWith("#")) {
     const pathname = getSelectedPagePathname();
     if (pathname) {
-      href = pathname;
+      href = pathname + href;
     }
   }
   const pageHref = new URL(href, "https://any-valid.url");
@@ -59,6 +60,7 @@ const switchPageAndUpdateSystem = (href: string, formData?: FormData) => {
       const search = Object.fromEntries(pageHref.searchParams);
       switchPage(page.id, pageHref.hash);
       updateSystem(page, { params, search });
+      savePathInHistory(page.id, pageHref.pathname);
       break;
     }
   }
@@ -88,6 +90,16 @@ export const subscribeInterceptedEvents = () => {
       if (event.target.closest("button") && $isPreviewMode.get() === false) {
         event.preventDefault();
       }
+    }
+  };
+
+  const handlePointerDown = (event: PointerEvent) => {
+    if (false === event.target instanceof HTMLElement) {
+      return;
+    }
+
+    if (event.target.closest("select") && $isPreviewMode.get() === false) {
+      event.preventDefault();
     }
   };
 
@@ -136,7 +148,14 @@ export const subscribeInterceptedEvents = () => {
   });
 
   document.documentElement.addEventListener("keydown", handleKeydown);
+
+  document.documentElement.addEventListener("pointerdown", handlePointerDown);
+
   return () => {
+    document.documentElement.removeEventListener(
+      "pointerdown",
+      handlePointerDown
+    );
     document.documentElement.removeEventListener("click", handleClick, {
       capture: true,
     });

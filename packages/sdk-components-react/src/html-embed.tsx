@@ -70,7 +70,6 @@ const processSyncTasks = async (syncTasks: ScriptTask[]) => {
 
   patchDomEvents();
 
-  console.info("Start processing sync tasks");
   processing = true;
 
   while (syncTasksQueue.length > 0) {
@@ -81,7 +80,6 @@ const processSyncTasks = async (syncTasks: ScriptTask[]) => {
   executeDomEvents();
 
   processing = false;
-  console.info("Stop processing sync tasks");
 };
 
 // Inspiration https://ghinda.net/article/script-tags
@@ -115,7 +113,7 @@ type ChildProps = {
 const Placeholder = (props: ChildProps) => {
   const { code, innerRef, ...rest } = props;
   return (
-    <div ref={innerRef} {...rest} style={{ padding: 20 }}>
+    <div ref={innerRef} {...rest} style={{ display: "block", padding: 20 }}>
       {'Open the "Settings" panel to insert HTML code.'}
     </div>
   );
@@ -162,7 +160,6 @@ const ClientEmbed = (props: ChildProps) => {
     <div
       {...rest}
       ref={mergeRefs(innerRef, containerRef)}
-      style={{ display: "contents" }}
       dangerouslySetInnerHTML={{ __html: code ?? "" }}
     />
   );
@@ -178,7 +175,6 @@ const ServerEmbed = (props: ChildProps) => {
     <div
       {...rest}
       ref={innerRef}
-      style={{ display: "contents" }}
       dangerouslySetInnerHTML={{ __html: code ?? "" }}
     />
   );
@@ -190,11 +186,14 @@ type HtmlEmbedProps = {
   code: string;
   executeScriptOnCanvas?: boolean;
   clientOnly?: boolean;
+  // avoid builder passing it to dom
+  children?: never;
 };
 
 export const HtmlEmbed = forwardRef<HTMLDivElement, HtmlEmbedProps>(
   (props, ref) => {
-    const { code, executeScriptOnCanvas, clientOnly, ...rest } = props;
+    const { code, executeScriptOnCanvas, clientOnly, children, ...rest } =
+      props;
     const { renderer } = useContext(ReactSdkContext);
 
     const isServer = useIsServer();

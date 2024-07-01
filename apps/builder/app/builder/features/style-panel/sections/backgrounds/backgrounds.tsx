@@ -43,7 +43,7 @@ import {
 import { BackgroundContent } from "./background-content";
 import { getLayerName, LayerThumbnail } from "./background-thumbnail";
 import { useMemo } from "react";
-import type { RgbValue, StyleProperty } from "@webstudio-is/css-engine";
+import type { StyleProperty, StyleValue } from "@webstudio-is/css-engine";
 import {
   CollapsibleSectionRoot,
   useOpenState,
@@ -58,36 +58,42 @@ const Layer = (props: {
   setProperty: SetBackgroundProperty;
   deleteProperty: DeleteBackgroundProperty;
   deleteLayer: () => void;
-  setBackgroundColor: (color: RgbValue) => void;
+  setBackgroundColor: (color: StyleValue) => void;
 }) => {
   const assets = useStore($assets);
 
-  const backgrounImageStyle = props.layerStyle.backgroundImage?.value;
+  const backgroundImageStyle = props.layerStyle.backgroundImage?.value;
   const isHidden =
-    backgrounImageStyle?.type === "image" ||
-    backgrounImageStyle?.type === "unparsed"
-      ? Boolean(backgrounImageStyle.hidden)
+    backgroundImageStyle?.type === "image" ||
+    backgroundImageStyle?.type === "unparsed"
+      ? Boolean(backgroundImageStyle.hidden)
       : false;
 
   const handleHiddenChange = (hidden: boolean) => {
     if (
-      backgrounImageStyle?.type === "image" ||
-      backgrounImageStyle?.type === "unparsed"
+      backgroundImageStyle?.type === "image" ||
+      backgroundImageStyle?.type === "unparsed"
     ) {
       props.setProperty("backgroundImage")({
-        ...backgrounImageStyle,
+        ...backgroundImageStyle,
         hidden,
       });
     }
   };
 
   const canDisable =
-    backgrounImageStyle?.type !== "image" &&
-    backgrounImageStyle?.type !== "unparsed";
+    backgroundImageStyle?.type !== "image" &&
+    backgroundImageStyle?.type !== "unparsed";
 
   return (
     <FloatingPanel
       title="Background"
+      // Background Panel is big, and the size differs when the tabs are changed.
+      // This results in the panel moving around when the tabs are changed.
+      // And sometimes, the tab moves away from the cursor, when the content change happens on the top.
+      // This is a workaround to prevent the panel from moving around too much when the tabs are changed from the popover trigger.
+      align="center"
+      collisionPadding={{ bottom: 200, top: 200 }}
       content={
         <BackgroundContent
           currentStyle={props.layerStyle}
@@ -139,7 +145,8 @@ export const properties = [
   "backgroundColor",
   "backgroundImage",
   "backgroundOrigin",
-  "backgroundPosition",
+  "backgroundPositionX",
+  "backgroundPositionY",
   "backgroundRepeat",
   "backgroundSize",
   "backgroundBlendMode",

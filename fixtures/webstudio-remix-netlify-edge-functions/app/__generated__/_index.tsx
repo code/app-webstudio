@@ -10,6 +10,8 @@ import {
   Text as Text,
 } from "@webstudio-is/sdk-components-react";
 
+export const siteName = "";
+
 export const favIconAsset: ImageAsset | undefined = undefined;
 
 export const socialImageAsset: ImageAsset | undefined = undefined;
@@ -19,12 +21,16 @@ export const pageFontAssets: FontAsset[] = [];
 
 export const pageBackgroundImageAssets: ImageAsset[] = [];
 
+export const CustomCode = () => {
+  return <></>;
+};
+
 const Page = ({}: { system: any }) => {
   return (
     <Body
       data-ws-id="MMimeobf_zi4ZkRGXapju"
       data-ws-component="Body"
-      className="c1jaw2zx c1bn74oy c1vwwfi7 c1xn7xpo"
+      className="c1jaw2zx cbipm55 ctniqj4 ctgx88l"
     >
       <Heading data-ws-id="MYDt0guk1-vzc7yzqyN6A" data-ws-component="Heading">
         {"Simple Project to test CLI"}

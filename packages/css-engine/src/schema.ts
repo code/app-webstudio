@@ -16,6 +16,7 @@ export const UnitValue = z.object({
   type: z.literal("unit"),
   unit: Unit,
   value: z.number(),
+  hidden: z.boolean().optional(),
 });
 
 export type UnitValue = z.infer<typeof UnitValue>;
@@ -24,6 +25,7 @@ export const KeywordValue = z.object({
   type: z.literal("keyword"),
   // @todo use exact type
   value: z.string(),
+  hidden: z.boolean().optional(),
 });
 export type KeywordValue = z.infer<typeof KeywordValue>;
 
@@ -60,10 +62,12 @@ export const FunctionValue: z.ZodType<{
   type: "function";
   name: string;
   args: StyleValue;
+  hidden?: boolean;
 }> = z.object({
   type: z.literal("function"),
   name: z.string(),
   args: z.lazy(() => StyleValue),
+  hidden: z.boolean().optional(),
 });
 
 export const ImageValue = z.object({

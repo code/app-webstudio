@@ -1,6 +1,6 @@
 {
   "name": "@webstudio-is/sdk-components-react",
-  "version": "0.145.0",
+  "version": "0.168.0",
   "description": "Webstudio default library for react",
   "author": "Webstudio <github@webstudio.is>",
   "homepage": "https://webstudio.is",
@@ -16,20 +16,22 @@
     ".": {
       "webstudio": "./src/components.ts",
       "types": "./lib/types/components.d.ts",
-      "import": "./lib/components.js",
-      "require": "./lib/components.js"
+      "import": "./lib/components.js"
     },
     "./metas": {
       "webstudio": "./src/metas.ts",
       "types": "./lib/types/metas.d.ts",
-      "import": "./lib/metas.js",
-      "require": "./lib/metas.js"
+      "import": "./lib/metas.js"
     },
     "./props": {
       "webstudio": "./src/props.ts",
       "types": "./lib/types/props.d.ts",
-      "import": "./lib/props.js",
-      "require": "./lib/props.js"
+      "import": "./lib/props.js"
+    },
+    "./hooks": {
+      "webstudio": "./src/hooks.ts",
+      "types": "./lib/types/hooks.d.ts",
+      "import": "./lib/hooks.js"
     }
   },
   "scripts": {
@@ -39,9 +41,7 @@
     "dts": "tsc --project tsconfig.dts.json",
     "test": "NODE_OPTIONS=--experimental-vm-modules jest",
     "typecheck": "tsc",
-    "checks": "pnpm typecheck",
-    "storybook:dev": "storybook dev -p 6006 --static-dir=./public",
-    "storybook:build": "storybook build"
+    "checks": "pnpm typecheck"
   },
   "peerDependencies": {
     "react": "18.3.0-canary-14898b6a9-20240318",
@@ -56,20 +56,16 @@
   },
   "devDependencies": {
     "@jest/globals": "^29.7.0",
-    "@storybook/addon-essentials": "^7.4.0",
-    "@storybook/addon-links": "^7.4.0",
-    "@storybook/react": "^7.4.0",
     "@testing-library/jest-dom": "^6.4.2",
     "@testing-library/react": "^14.2.2",
     "@types/react": "^18.2.70",
     "@types/react-dom": "^18.2.25",
     "@webstudio-is/generate-arg-types": "workspace:*",
     "@webstudio-is/jest-config": "workspace:*",
-    "@webstudio-is/storybook-config": "workspace:*",
     "@webstudio-is/tsconfig": "workspace:*",
     "jest-environment-jsdom": "^29.7.0",
     "react": "18.3.0-canary-14898b6a9-20240318",
     "react-dom": "18.3.0-canary-14898b6a9-20240318",
-    "typescript": "5.4.5"
+    "typescript": "5.5.2"
   }
 }

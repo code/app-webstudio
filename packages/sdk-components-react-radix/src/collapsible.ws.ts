@@ -32,23 +32,7 @@ export const metaCollapsible: WsComponentMeta = {
     {
       type: "instance",
       component: "Collapsible",
-      variables: {
-        collapsibleOpen: { initialValue: false },
-      },
-      props: [
-        {
-          type: "expression",
-          name: "open",
-          code: "collapsibleOpen",
-        },
-        {
-          name: "onOpenChange",
-          type: "action",
-          value: [
-            { type: "execute", args: ["open"], code: `collapsibleOpen = open` },
-          ],
-        },
-      ],
+      props: [],
       children: [
         {
           type: "instance",
@@ -58,7 +42,13 @@ export const metaCollapsible: WsComponentMeta = {
               type: "instance",
               component: "Button",
               styles: getButtonStyles("outline"),
-              children: [{ type: "text", value: "Click to toggle content" }],
+              children: [
+                {
+                  type: "text",
+                  value: "Click to toggle content",
+                  placeholder: true,
+                },
+              ],
             },
           ],
         },
@@ -69,7 +59,13 @@ export const metaCollapsible: WsComponentMeta = {
             {
               type: "instance",
               component: "Text",
-              children: [{ type: "text", value: "Collapsible Content" }],
+              children: [
+                {
+                  type: "text",
+                  value: "Collapsible Content",
+                  placeholder: true,
+                },
+              ],
             },
           ],
         },

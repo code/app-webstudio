@@ -24,7 +24,7 @@ import {
   $selectedInstance,
   $registeredComponentMetas,
   $dragAndDropState,
-  $inspectorLastInputTime,
+  $selectedPage,
 } from "~/shared/nano-states";
 import { NavigatorTree } from "~/builder/shared/navigator-tree";
 import type { Settings } from "~/builder/shared/client-settings";
@@ -71,17 +71,13 @@ const contentStyle = {
 
 const $isDragging = computed([$dragAndDropState], (state) => state.isDragging);
 
-const handleInspectorInput = () => {
-  // Notify canvas of input changes, related to setInert on iframe
-  $inspectorLastInputTime.set(Date.now());
-};
-
 export const Inspector = ({ navigatorLayout }: InspectorProps) => {
   const selectedInstance = useStore($selectedInstance);
   const tabsRef = useRef<HTMLDivElement>(null);
   const [tab, setTab] = useState("style");
   const isDragging = useStore($isDragging);
   const metas = useStore($registeredComponentMetas);
+  const selectedPage = useStore($selectedPage);
 
   if (navigatorLayout === "docked" && isDragging) {
     return <NavigatorTree />;
@@ -101,7 +97,9 @@ export const Inspector = ({ navigatorLayout }: InspectorProps) => {
   }
 
   const meta = metas.get(selectedInstance.component);
-  const isStyleTabVisible = meta?.stylable ?? true;
+  const documentType = selectedPage?.meta.documentType ?? "html";
+
+  const isStyleTabVisible = documentType === "html" && (meta?.stylable ?? true);
 
   const availableTabs = [
     isStyleTabVisible ? "style" : undefined,
@@ -116,63 +114,57 @@ export const Inspector = ({ navigatorLayout }: InspectorProps) => {
     >
       <FloatingPanelProvider container={tabsRef}>
         <BindingPopoverProvider value={{ containerRef: tabsRef }}>
-          <div style={{ display: "contents" }} onInput={handleInspectorInput}>
-            <PanelTabs
-              ref={tabsRef}
-              value={availableTabs.includes(tab) ? tab : availableTabs[0]}
-              onValueChange={setTab}
-              asChild
-            >
-              <Flex direction="column">
-                <PanelTabsList>
-                  {isStyleTabVisible && (
-                    <Tooltip
-                      variant="wrapped"
-                      content="The Style panel allows manipulation of CSS visually."
-                    >
-                      <div>
-                        <PanelTabsTrigger value="style">Style</PanelTabsTrigger>
-                      </div>
-                    </Tooltip>
-                  )}
+          <PanelTabs
+            ref={tabsRef}
+            value={availableTabs.includes(tab) ? tab : availableTabs[0]}
+            onValueChange={setTab}
+            asChild
+          >
+            <Flex direction="column">
+              <PanelTabsList>
+                {isStyleTabVisible && (
                   <Tooltip
                     variant="wrapped"
-                    content="The Settings panel allows for customizing component properties and HTML attributes."
+                    content="The Style panel allows manipulation of CSS visually."
                   >
                     <div>
-                      <PanelTabsTrigger value="settings">
-                        Settings
-                      </PanelTabsTrigger>
+                      <PanelTabsTrigger value="style">Style</PanelTabsTrigger>
                     </div>
                   </Tooltip>
-                </PanelTabsList>
-                <Separator />
-                <PanelTabsContent
-                  value="style"
-                  css={contentStyle}
-                  tabIndex={-1}
+                )}
+                <Tooltip
+                  variant="wrapped"
+                  content="The Settings panel allows for customizing component properties and HTML attributes."
                 >
+                  <div>
+                    <PanelTabsTrigger value="settings">
+                      Settings
+                    </PanelTabsTrigger>
+                  </div>
+                </Tooltip>
+              </PanelTabsList>
+              <Separator />
+              <PanelTabsContent value="style" css={contentStyle} tabIndex={-1}>
+                <InstanceInfo instance={selectedInstance} />
+                <StylePanel selectedInstance={selectedInstance} />
+              </PanelTabsContent>
+              <PanelTabsContent
+                value="settings"
+                css={contentStyle}
+                tabIndex={-1}
+              >
+                <ScrollArea>
                   <InstanceInfo instance={selectedInstance} />
-                  <StylePanel selectedInstance={selectedInstance} />
-                </PanelTabsContent>
-                <PanelTabsContent
-                  value="settings"
-                  css={contentStyle}
-                  tabIndex={-1}
-                >
-                  <ScrollArea>
-                    <InstanceInfo instance={selectedInstance} />
-                    <SettingsPanelContainer
-                      key={
-                        selectedInstance.id /* Re-render when instance changes */
-                      }
-                      selectedInstance={selectedInstance}
-                    />
-                  </ScrollArea>
-                </PanelTabsContent>
-              </Flex>
-            </PanelTabs>
-          </div>
+                  <SettingsPanelContainer
+                    key={
+                      selectedInstance.id /* Re-render when instance changes */
+                    }
+                    selectedInstance={selectedInstance}
+                  />
+                </ScrollArea>
+              </PanelTabsContent>
+            </Flex>
+          </PanelTabs>
         </BindingPopoverProvider>
       </FloatingPanelProvider>
     </EnhancedTooltipProvider>

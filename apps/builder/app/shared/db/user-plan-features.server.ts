@@ -1,5 +1,6 @@
 import { prisma } from "@webstudio-is/prisma-client";
 import type { AppContext } from "@webstudio-is/trpc-interface/index.server";
+import env from "~/env/env.server";
 
 export type UserPlanFeatures = NonNullable<AppContext["userPlanFeatures"]>;
 
@@ -63,6 +64,7 @@ export const getUserPlanFeatures = async (
     return {
       allowShareAdminLinks: true,
       allowDynamicData: true,
+      allowContactEmail: true,
       maxDomainsAllowedPerUser: Number.MAX_SAFE_INTEGER,
       hasSubscription,
       hasProPlan: true,
@@ -70,9 +72,22 @@ export const getUserPlanFeatures = async (
     };
   }
 
+  if (env.USER_PLAN === "pro") {
+    return {
+      allowShareAdminLinks: true,
+      allowDynamicData: true,
+      allowContactEmail: true,
+      maxDomainsAllowedPerUser: Number.MAX_SAFE_INTEGER,
+      hasSubscription: true,
+      hasProPlan: true,
+      planName: "env.USER_PLAN Pro",
+    };
+  }
+
   return {
     allowShareAdminLinks: false,
     allowDynamicData: false,
+    allowContactEmail: false,
     maxDomainsAllowedPerUser: 5,
     hasSubscription: false,
     hasProPlan: false,

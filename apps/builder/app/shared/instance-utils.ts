@@ -61,6 +61,7 @@ import { removeByMutable } from "./array-utils";
 import { isBaseBreakpoint } from "./breakpoints";
 import { humanizeString } from "./string-utils";
 import { serverSyncStore } from "./sync";
+import { setDifference, setUnion } from "./shim";
 
 export const updateWebstudioData = (mutate: (data: WebstudioData) => void) => {
   serverSyncStore.createTransaction(
@@ -221,7 +222,7 @@ export const isInstanceDetachable = (
   }
   const meta = metas.get(instance.component);
   if (meta === undefined) {
-    return false;
+    return true;
   }
   return meta.detachable ?? true;
 };
@@ -295,12 +296,30 @@ export const computeInstancesConstraints = (
   };
 };
 
-export const findClosestDroppableComponentIndex = (
-  metas: Map<string, WsComponentMeta>,
-  componentSelector: string[],
-  constraints: InsertConstraints
-) => {
+export const findClosestDroppableComponentIndex = ({
+  metas,
+  constraints,
+  instances,
+  instanceSelector,
+  allowInsertIntoTextContainer = true,
+}: {
+  metas: Map<string, WsComponentMeta>;
+  constraints: InsertConstraints;
+  instances: Instances;
+  instanceSelector: InstanceSelector;
+  allowInsertIntoTextContainer?: boolean;
+}) => {
   const { requiredAncestors, invalidAncestors } = constraints;
+  const componentSelector: string[] = [];
+  for (const instanceId of instanceSelector) {
+    const instance = instances.get(instanceId);
+    if (instance === undefined) {
+      componentSelector.push("Fragment");
+      continue;
+    }
+    // Collection produce fake instances and fragment does not have constraints.
+    componentSelector.push(instance.component);
+  }
 
   let containerIndex = -1;
   let requiredFound = false;
@@ -310,6 +329,18 @@ export const findClosestDroppableComponentIndex = (
       containerIndex = -1;
       requiredFound = false;
       continue;
+    }
+    if (allowInsertIntoTextContainer === false) {
+      const instance = instances.get(instanceSelector[index]);
+      if (instance !== undefined) {
+        const hasTextChild = instance.children.some(
+          (child) => child.type === "text" || child.type === "expression"
+        );
+        if (hasTextChild) {
+          containerIndex = -1;
+          continue;
+        }
+      }
     }
     if (requiredAncestors.has(ancestorComponent) === true) {
       requiredFound = true;
@@ -332,26 +363,17 @@ export const findClosestDroppableTarget = (
   instanceSelector: InstanceSelector,
   insertConstraints: InsertConstraints
 ): undefined | DroppableTarget => {
-  const componentSelector: string[] = [];
-  for (const instanceId of instanceSelector) {
-    const component = instances.get(instanceId)?.component;
-    // collection produce fake instances
-    // and fragment does not have constraints
-    if (component === undefined) {
-      componentSelector.push("Fragment");
-      continue;
-    }
-    componentSelector.push(component);
-  }
-
-  const droppableIndex = findClosestDroppableComponentIndex(
+  const droppableIndex = findClosestDroppableComponentIndex({
     metas,
-    componentSelector,
-    insertConstraints
-  );
+    constraints: insertConstraints,
+    instances,
+    instanceSelector,
+    allowInsertIntoTextContainer: false,
+  });
   if (droppableIndex === -1) {
     return;
   }
+
   if (droppableIndex === 0) {
     return {
       parentSelector: instanceSelector,
@@ -1010,13 +1032,13 @@ export const insertWebstudioFragmentCopy = ({
   }
 
   const fragmentInstances: Instances = new Map();
-  const portalContentIds = new Set<Instance["id"]>();
+  const portalContentRootIds = new Set<Instance["id"]>();
   for (const instance of fragment.instances) {
     fragmentInstances.set(instance.id, instance);
     if (instance.component === portalComponent) {
       for (const child of instance.children) {
         if (child.type === "id") {
-          portalContentIds.add(child.value);
+          portalContentRootIds.add(child.value);
         }
       }
     }
@@ -1101,21 +1123,24 @@ export const insertWebstudioFragmentCopy = ({
     }
   }
 
+  let portalContentIds = new Set<Instance["id"]>();
+
   // insert portal contents
   // - instances
   // - data sources
   // - props
   // - local styles
-  for (const rootInstanceId of portalContentIds) {
-    // prevent reinserting portals which could be already changed by user
-    if (instances.has(rootInstanceId)) {
-      continue;
-    }
-
+  for (const rootInstanceId of portalContentRootIds) {
     const instanceIds = findTreeInstanceIdsExcludingSlotDescendants(
       fragmentInstances,
       rootInstanceId
     );
+    portalContentIds = setUnion(portalContentIds, instanceIds);
+
+    // prevent reinserting portals which could be already changed by user
+    if (instances.has(rootInstanceId)) {
+      continue;
+    }
 
     const availablePortalDataSources = new Set(availableDataSources);
     const usedResourceIds = new Set<Resource["id"]>();
@@ -1268,9 +1293,9 @@ export const insertWebstudioFragmentCopy = ({
    */
 
   // generate new ids only instances outside of portals
-  const fragmentInstanceIds = findTreeInstanceIdsExcludingSlotDescendants(
-    fragmentInstances,
-    fragment.instances[0].id
+  const fragmentInstanceIds = setDifference(
+    new Set(fragmentInstances.keys()),
+    portalContentIds
   );
   for (const instanceId of fragmentInstanceIds) {
     newInstanceIds.set(instanceId, nanoid());

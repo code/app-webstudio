@@ -1,6 +1,3 @@
-/* eslint-disable react/display-name */
-// We can't use .displayName until this is merged https://github.com/styleguidist/react-docgen-typescript/pull/449
-
 import {
   type ComponentPropsWithoutRef,
   type ForwardRefExoticComponent,
@@ -12,6 +9,7 @@ import { Root, List, Trigger, Content } from "@radix-ui/react-tabs";
 import {
   getClosestInstance,
   getIndexWithinAncestorFromComponentProps,
+  getInstanceSelectorById,
   type Hook,
 } from "@webstudio-is/react-sdk";
 
@@ -58,7 +56,11 @@ export const hooksTabs: Hook = {
           context.getPropValue(instance.id, "value") ??
           context.indexesWithinAncestors.get(instance.id)?.toString();
         if (tabs && contentValue) {
-          context.setPropVariable(tabs.id, "value", contentValue);
+          const instanceSelector = getInstanceSelectorById(
+            event.instanceSelector,
+            tabs.id
+          );
+          context.setMemoryProp(instanceSelector, "value", contentValue);
         }
       }
     }

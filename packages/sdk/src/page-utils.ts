@@ -1,5 +1,6 @@
 import { executeExpression } from "./expression";
 import type { Folder, Page, Pages } from "./schema/pages";
+import { isPathnamePattern } from "./url-pattern";
 
 export const ROOT_FOLDER_ID = "root";
 
@@ -79,11 +80,13 @@ export const getStaticSiteMapXml = (pages: Pages, updatedAt: string) => {
   const allPages = [pages.homePage, ...pages.pages];
   return (
     allPages
+      .filter((page) => (page.meta.documentType ?? "html") === "html")
       // ignore pages with excludePageFromSearch bound to variables
       // because there is no data from cms available at build time
       .filter(
         (page) => executeExpression(page.meta.excludePageFromSearch) !== true
       )
+      .filter((page) => false === isPathnamePattern(page.path))
       .map((page) => ({
         path: getPagePath(page.id, pages),
         lastModified: updatedAt.split("T")[0],

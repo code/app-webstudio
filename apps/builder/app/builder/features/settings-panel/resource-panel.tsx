@@ -1,18 +1,23 @@
+import { z } from "zod";
 import { computed } from "nanostores";
 import { nanoid } from "nanoid";
 import {
   forwardRef,
+  useEffect,
   useId,
   useImperativeHandle,
   useMemo,
+  useRef,
   useState,
 } from "react";
 import { useStore } from "@nanostores/react";
 import type { DataSource, Resource } from "@webstudio-is/sdk";
 import {
   encodeDataSourceVariable,
+  generateObjectExpression,
   isLiteralExpression,
-  isLocalResource,
+  parseObjectExpression,
+  sitemapResourceUrl,
 } from "@webstudio-is/sdk";
 import {
   Box,
@@ -44,17 +49,111 @@ import {
   BindingPopover,
   evaluateExpressionWithinScope,
 } from "~/builder/shared/binding-popover";
-import {
-  type Field,
-  type ComposedFields,
-  useField,
-  composeFields,
-} from "~/shared/form-utils";
 import { ExpressionEditor } from "~/builder/shared/expression-editor";
-import { parseCurl } from "./curl";
+import {
+  EditorDialog,
+  EditorDialogButton,
+  EditorDialogControl,
+} from "~/builder/shared/code-editor-base";
+import { parseCurl, type CurlRequest } from "./curl";
+
+const validateUrl = (value: string, scope: Record<string, unknown>) => {
+  const evaluatedValue = evaluateExpressionWithinScope(value, scope);
+  if (typeof evaluatedValue !== "string") {
+    return "URL expects a string";
+  }
+  if (evaluatedValue.length === 0) {
+    return "URL is required";
+  }
+  try {
+    new URL(evaluatedValue);
+  } catch {
+    return "URL is invalid";
+  }
+  return "";
+};
+
+const UrlField = ({
+  scope,
+  aliases,
+  value,
+  onChange,
+  onCurlPaste,
+}: {
+  aliases: Map<string, string>;
+  scope: Record<string, unknown>;
+  value: string;
+  onChange: (value: string) => void;
+  onCurlPaste: (curl: CurlRequest) => void;
+}) => {
+  const urlId = useId();
+  const ref = useRef<HTMLTextAreaElement>(null);
+  const [error, setError] = useState("");
+  // revalidate and hide error message
+  // until validity is checks again
+  useEffect(() => {
+    ref.current?.setCustomValidity(validateUrl(value, scope));
+    setError("");
+  }, [value, scope]);
+  return (
+    <Grid gap={1}>
+      <Label
+        htmlFor={urlId}
+        css={{ display: "flex", alignItems: "center", gap: theme.spacing[3] }}
+      >
+        URL
+        <Tooltip
+          content="You can paste a URL or cURL. cURL is a format that can be executed directly in your terminal because it contains the entire Resource configuration."
+          variant="wrapped"
+          disableHoverableContent={true}
+        >
+          <InfoCircleIcon tabIndex={0} />
+        </Tooltip>
+      </Label>
+      <BindingControl>
+        <InputErrorsTooltip errors={error ? [error] : undefined}>
+          <TextArea
+            ref={ref}
+            name="url"
+            id={urlId}
+            rows={1}
+            grow={true}
+            // expressions with variables cannot be edited
+            disabled={isLiteralExpression(value) === false}
+            color={error ? "error" : undefined}
+            value={String(evaluateExpressionWithinScope(value, scope))}
+            onChange={(value) => {
+              const curl = parseCurl(value);
+              if (curl) {
+                onCurlPaste(curl);
+              } else {
+                // update text value as string literal
+                onChange(JSON.stringify(value));
+              }
+            }}
+            onBlur={(event) => event.currentTarget.checkValidity()}
+            onInvalid={(event) =>
+              setError(event.currentTarget.validationMessage)
+            }
+          />
+        </InputErrorsTooltip>
+        <BindingPopover
+          scope={scope}
+          aliases={aliases}
+          variant={isLiteralExpression(value) ? "default" : "bound"}
+          value={value}
+          onChange={onChange}
+          onRemove={(evaluatedValue) =>
+            onChange(JSON.stringify(evaluatedValue))
+          }
+        />
+      </BindingControl>
+    </Grid>
+  );
+};
 
 const validateHeaderName = (value: string) =>
-  value.trim().length === 0 ? "Header name is required" : undefined;
+  value.trim().length === 0 ? "Header name is required" : "";
 
 const validateHeaderValue = (value: string, scope: Record<string, unknown>) => {
   const evaluatedValue = evaluateExpressionWithinScope(value, scope);
@@ -64,36 +163,41 @@ const validateHeaderValue = (value: string, scope: Record<string, unknown>) => {
   if (evaluatedValue.length === 0) {
     return "Header value is required";
   }
+  return "";
 };
 
 const HeaderPair = ({
-  editorAliases,
-  editorScope,
+  aliases,
+  scope,
   name,
   value,
   onChange,
   onDelete,
 }: {
-  editorAliases: Map<string, string>;
-  editorScope: Record<string, unknown>;
+  aliases: Map<string, string>;
+  scope: Record<string, unknown>;
   name: string;
   value: string;
   onChange: (name: string, value: string) => void;
   onDelete: () => void;
 }) => {
   const nameId = useId();
-  const valueId = useId();
+  const nameRef = useRef<HTMLInputElement>(null);
+  const [nameError, setNameError] = useState("");
+  // revalidate and hide error message
+  // until validity is checks again
+  useEffect(() => {
+    nameRef.current?.setCustomValidity(validateHeaderName(name));
+    setNameError("");
+  }, [name]);
 
-  // temporary fields to validate name and value only onBlur
-  // invalid headers will be removed on save
-  const nameField = useField({
-    initialValue: name,
-    validate: validateHeaderName,
-  });
-  const valueField = useField({
-    initialValue: value,
-    validate: (value) => validateHeaderValue(value, editorScope),
-  });
+  const valueId = useId();
+  const valueRef = useRef<HTMLInputElement>(null);
+  const [valueError, setValueError] = useState("");
+  useEffect(() => {
+    valueRef.current?.setCustomValidity(validateHeaderValue(value, scope));
+    setValueError("");
+  }, [value, scope]);
 
   return (
     <Grid
@@ -110,19 +214,21 @@ const HeaderPair = ({
       <Label htmlFor={nameId} css={{ gridArea: "name" }}>
         Name
       </Label>
-      <InputErrorsTooltip
-        errors={nameField.error ? [nameField.error] : undefined}
-      >
+      <InputErrorsTooltip errors={nameError ? [nameError] : undefined}>
         <InputField
+          inputRef={nameRef}
+          name="header-name"
           css={{ gridArea: "name-input" }}
           id={nameId}
-          color={nameField.error ? "error" : undefined}
+          color={nameError ? "error" : undefined}
           value={name}
-          onChange={(event) => {
-            nameField.onChange(event.target.value);
-            onChange(event.target.value, value);
-          }}
-          onBlur={nameField.onBlur}
+          onChange={(event) => onChange(event.target.value, value)}
+          // can't use event.currentTarget because InputField
+          // binds focus events to container instead of input
+          onBlur={() => nameRef.current?.checkValidity()}
+          onInvalid={(event) =>
+            setNameError(event.currentTarget.validationMessage)
+          }
         />
       </InputErrorsTooltip>
       <Label htmlFor={valueId} css={{ gridArea: "value" }}>
@@ -130,38 +236,34 @@ const HeaderPair = ({
       </Label>
       <Box css={{ gridArea: "value-input", position: "relative" }}>
         <BindingControl>
-          <InputErrorsTooltip
-            errors={valueField.error ? [valueField.error] : undefined}
-          >
+          <InputErrorsTooltip errors={valueError ? [valueError] : undefined}>
             <InputField
+              inputRef={valueRef}
+              name="header-value"
               id={valueId}
               // expressions with variables cannot be edited
               disabled={isLiteralExpression(value) === false}
-              color={valueField.error ? "error" : undefined}
-              value={String(evaluateExpressionWithinScope(value, editorScope))}
+              color={valueError ? "error" : undefined}
+              value={String(evaluateExpressionWithinScope(value, scope))}
               // update text value as string literal
-              onChange={(event) => {
-                valueField.onChange(JSON.stringify(event.target.value));
-                onChange(name, JSON.stringify(event.target.value));
-              }}
-              onBlur={valueField.onBlur}
+              onChange={(event) =>
+                onChange(name, JSON.stringify(event.target.value))
+              }
+              onBlur={() => valueRef.current?.checkValidity()}
+              onInvalid={(event) =>
+                setValueError(event.currentTarget.validationMessage)
+              }
             />
           </InputErrorsTooltip>
           <BindingPopover
-            scope={editorScope}
-            aliases={editorAliases}
+            scope={scope}
+            aliases={aliases}
             variant={isLiteralExpression(value) ? "default" : "bound"}
             value={value}
-            onChange={(newValue) => {
-              valueField.onChange(newValue);
-              valueField.onBlur();
-              onChange(name, newValue);
-            }}
-            onRemove={(evaluatedValue) => {
-              valueField.onChange(JSON.stringify(evaluatedValue));
-              valueField.onBlur();
-              onChange(name, JSON.stringify(evaluatedValue));
-            }}
+            onChange={(newValue) => onChange(name, newValue)}
+            onRemove={(evaluatedValue) =>
+              onChange(name, JSON.stringify(evaluatedValue))
+            }
           />
         </BindingControl>
       </Box>
@@ -203,50 +305,53 @@ const HeaderPair = ({
 };
 
 const Headers = ({
-  editorScope,
-  editorAliases,
+  scope,
+  aliases,
   headers,
   onChange,
 }: {
-  editorAliases: Map<string, string>;
-  editorScope: Record<string, unknown>;
+  scope: Record<string, unknown>;
+  aliases: Map<string, string>;
   headers: Resource["headers"];
   onChange: (headers: Resource["headers"]) => void;
 }) => {
   return (
-    <Grid gap={3}>
-      {headers.map((header, index) => (
-        <HeaderPair
-          key={index}
-          editorScope={editorScope}
-          editorAliases={editorAliases}
-          name={header.name}
-          value={header.value}
-          onChange={(name, value) => {
-            const newHeaders = [...headers];
-            newHeaders[index] = { name, value };
+    <Grid gap={1}>
+      <Label>Headers</Label>
+      <Grid gap={3}>
+        {headers.map((header, index) => (
+          <HeaderPair
+            key={index}
+            scope={scope}
+            aliases={aliases}
+            name={header.name}
+            value={header.value}
+            onChange={(name, value) => {
+              const newHeaders = [...headers];
+              newHeaders[index] = { name, value };
+              onChange(newHeaders);
+            }}
+            onDelete={() => {
+              const newHeaders = [...headers];
+              newHeaders.splice(index, 1);
+              onChange(newHeaders);
+            }}
+          />
+        ))}
+        <Button
+          type="button"
+          color="neutral"
+          css={{ justifySelf: "center" }}
+          prefix={<PlusIcon />}
+          onClick={() => {
+            // use empty string expression as default
+            const newHeaders = [...headers, { name: "", value: `""` }];
             onChange(newHeaders);
           }}
-          onDelete={() => {
-            const newHeaders = [...headers];
-            newHeaders.splice(index, 1);
-            onChange(newHeaders);
-          }}
-        />
-      ))}
-      <Button
-        type="button"
-        color="neutral"
-        css={{ justifySelf: "center" }}
-        prefix={<PlusIcon />}
-        onClick={() => {
-          // use empty string expression as default
-          const newHeaders = [...headers, { name: "", value: `""` }];
-          onChange(newHeaders);
-        }}
-      >
-        Add another header pair
-      </Button>
+        >
+          Add another header pair
+        </Button>
+      </Grid>
     </Grid>
   );
 };
@@ -312,106 +417,7 @@ const $selectedInstanceScope = computed(
   }
 );
 
-const BodyField = ({
-  editorAliases,
-  editorScope,
-  contentType,
-  bodyField,
-}: {
-  editorAliases: Map<string, string>;
-  editorScope: Record<string, unknown>;
-  contentType?: string;
-  bodyField: Field<undefined | string>;
-}) => {
-  const evaluatedBodyValue =
-    bodyField.value === undefined
-      ? undefined
-      : evaluateExpressionWithinScope(bodyField.value, editorScope);
-  const evaluatedContentType = contentType
-    ? evaluateExpressionWithinScope(contentType, editorScope)
-    : undefined;
-  const isBound =
-    bodyField.value !== undefined &&
-    isLiteralExpression(bodyField.value) === false;
-  const isJsonBody = String(evaluatedContentType ?? "") === "application/json";
-
-  const [localValue, setLocalValue] = useState<undefined | string>();
-
-  return (
-    <Flex direction="column" css={{ gap: theme.spacing[3] }}>
-      <Label>Body</Label>
-      <BindingControl>
-        <InputErrorsTooltip
-          errors={bodyField.error ? [bodyField.error] : undefined}
-        >
-          {isJsonBody ? (
-            // wrap with div to position error tooltip
-            <div>
-              <ExpressionEditor
-                color={bodyField.error ? "error" : undefined}
-                // expressions with variables cannot be edited
-                readOnly={
-                  localValue === undefined && isBound && bodyField.valid
-                }
-                value={
-                  localValue ??
-                  JSON.stringify(evaluatedBodyValue, null, 2) ??
-                  bodyField.value ??
-                  ""
-                }
-                onChange={(value) => {
-                  setLocalValue(value);
-                  bodyField.onChange(value);
-                }}
-                onBlur={() => {
-                  setLocalValue(undefined);
-                  bodyField.onBlur();
-                }}
-              />
-            </div>
-          ) : (
-            <TextArea
-              autoGrow={true}
-              maxRows={10}
-              // expressions with variables cannot be edited
-              disabled={isBound}
-              state={bodyField.error ? "invalid" : undefined}
-              value={String(evaluatedBodyValue ?? "")}
-              // update text value as string literal
-              onChange={(newValue) =>
-                bodyField.onChange(JSON.stringify(newValue))
-              }
-              onBlur={bodyField.onBlur}
-            />
-          )}
-        </InputErrorsTooltip>
-        <BindingPopover
-          scope={editorScope}
-          aliases={editorAliases}
-          variant={isBound ? "bound" : "default"}
-          value={bodyField.value ?? ""}
-          onChange={(value) => {
-            bodyField.onChange(value);
-            bodyField.onBlur();
-          }}
-          onRemove={(evaluatedValue) => {
-            bodyField.onChange(JSON.stringify(evaluatedValue));
-            bodyField.onBlur();
-          }}
-        />
-      </BindingControl>
-    </Flex>
-  );
-};
-
-type PanelApi = ComposedFields & {
-  save: () => void;
-};
-
-export const ResourceForm = forwardRef<
-  undefined | PanelApi,
-  { variable?: DataSource; nameField: Field<string> }
->(({ variable, nameField }, ref) => {
+const useScope = ({ variable }: { variable?: DataSource }) => {
   const { scope: scopeWithCurrentVariable, aliases } = useStore(
     $selectedInstanceScope
   );
@@ -426,6 +432,132 @@ export const ResourceForm = forwardRef<
     delete newScope[encodeDataSourceVariable(currentVariableId)];
     return newScope;
   }, [scopeWithCurrentVariable, currentVariableId]);
+  return { scope, aliases };
+};
+
+type PanelApi = {
+  save: (formData: FormData) => void;
+};
+
+const validateBody = (
+  value: string,
+  contentType: unknown,
+  scope: Record<string, unknown>
+) => {
+  // skip empty expressions
+  if (value === "") {
+    return "";
+  }
+  const evaluatedValue = evaluateExpressionWithinScope(value, scope);
+  if (contentType === "application/json") {
+    return typeof evaluatedValue === "object" && evaluatedValue !== null
+      ? ""
+      : "Expected valid JSON object in body";
+  } else {
+    return typeof evaluatedValue === "string" ? "" : "Expected string in body";
+  }
+};
+
+const BodyField = ({
+  scope,
+  aliases,
+  contentType,
+  value,
+  onChange,
+}: {
+  aliases: Map<string, string>;
+  scope: Record<string, unknown>;
+  contentType: unknown;
+  value: string;
+  onChange: (value: string) => void;
+}) => {
+  const [isBodyLiteral, setIsBodyLiteral] = useState(
+    () => value === "" || isLiteralExpression(value)
+  );
+  const [bodyError, setBodyError] = useState("");
+  const bodyRef = useRef<HTMLTextAreaElement>(null);
+  useEffect(() => {
+    bodyRef.current?.setCustomValidity(validateBody(value, contentType, scope));
+    setBodyError("");
+  }, [value, contentType, scope]);
+
+  return (
+    <Grid gap={1}>
+      <Label>Body</Label>
+      <textarea
+        ref={bodyRef}
+        style={{ display: "none" }}
+        name="body"
+        data-color={bodyError ? "error" : undefined}
+        value={value}
+        onChange={() => {}}
+        onInvalid={(event) =>
+          setBodyError(event.currentTarget.validationMessage)
+        }
+      />
+      <BindingControl>
+        <InputErrorsTooltip errors={bodyError ? [bodyError] : undefined}>
+          {contentType === "application/json" ? (
+            // wrap with div to position error tooltip
+            <div>
+              <ExpressionEditor
+                color={bodyError ? "error" : undefined}
+                // expressions with variables cannot be edited
+                readOnly={isBodyLiteral === false}
+                value={
+                  isBodyLiteral
+                    ? value
+                    : JSON.stringify(
+                        evaluateExpressionWithinScope(value, scope),
+                        null,
+                        2
+                      ) ?? ""
+                }
+                onChange={onChange}
+                onBlur={() => bodyRef.current?.checkValidity()}
+              />
+            </div>
+          ) : (
+            <TextArea
+              autoGrow={true}
+              maxRows={10}
+              // expressions with variables cannot be edited
+              disabled={isBodyLiteral === false}
+              color={bodyError ? "error" : undefined}
+              value={String(evaluateExpressionWithinScope(value, scope) ?? "")}
+              // update text value as string literal
+              onChange={(newValue) => onChange(JSON.stringify(newValue))}
+              onBlur={() => bodyRef.current?.checkValidity()}
+            />
+          )}
+        </InputErrorsTooltip>
+        <BindingPopover
+          scope={scope}
+          aliases={aliases}
+          variant={isBodyLiteral ? "default" : "bound"}
+          value={value}
+          onChange={(value) => {
+            onChange(value);
+            setIsBodyLiteral(isLiteralExpression(value));
+          }}
+          onRemove={(evaluatedValue) => {
+            onChange(JSON.stringify(evaluatedValue));
+            setIsBodyLiteral(true);
+          }}
+        />
+      </BindingControl>
+    </Grid>
+  );
+};
+
+const isContentTypeHeader = (header: Resource["headers"][number]) =>
+  header.name.toLowerCase() === "content-type";
+
+export const ResourceForm = forwardRef<
+  undefined | PanelApi,
+  { variable?: DataSource }
+>(({ variable }, ref) => {
+  const { scope, aliases } = useScope({ variable });
 
   const resources = useStore($resources);
   const resource =
@@ -433,85 +565,41 @@ export const ResourceForm = forwardRef<
       ? resources.get(variable.resourceId)
       : undefined;
 
-  const urlField = useField<string>({
-    initialValue: resource?.url ?? `""`,
-    validate: (value) => {
-      const evaluatedValue = evaluateExpressionWithinScope(value, scope);
-      if (typeof evaluatedValue !== "string") {
-        return "URL expects a string";
-      }
-      if (evaluatedValue.length === 0) {
-        return "URL is required";
-      }
-      try {
-        new URL(evaluatedValue);
-      } catch {
-        if (isLocalResource(evaluatedValue, "sitemap.xml")) {
-          return;
-        }
-
-        return "URL is invalid";
-      }
-    },
-  });
+  const [url, setUrl] = useState(resource?.url ?? `""`);
   const [method, setMethod] = useState<Resource["method"]>(
     resource?.method ?? "get"
   );
-  const headersField = useField<Resource["headers"]>({
-    initialValue: resource?.headers ?? [],
-    validate: (_value) => undefined,
-  });
-  const bodyField = useField<undefined | string>({
-    initialValue: resource?.body,
-    validate: (value) => {
-      // skip empty expressions
-      if (value === undefined) {
-        return;
-      }
-      const evaluatedValue = evaluateExpressionWithinScope(value, scope);
-      const isString = typeof evaluatedValue === "string";
-      const isJson =
-        typeof evaluatedValue === "object" && evaluatedValue !== null;
-      if (isString === false && isJson === false) {
-        return "Body expects a string or json";
-      }
-    },
-  });
+  const [headers, setHeaders] = useState<Resource["headers"]>(
+    resource?.headers ?? []
+  );
+  const [body, setBody] = useState(() => resource?.body);
 
-  const form = composeFields(nameField, urlField, headersField, bodyField);
+  const contentType = headers.find(isContentTypeHeader)?.value;
+  const evaluatedContentType = contentType
+    ? evaluateExpressionWithinScope(contentType, scope)
+    : undefined;
+
   useImperativeHandle(ref, () => ({
-    ...form,
-    save: () => {
+    save: (formData) => {
       const instanceSelector = $selectedInstanceSelector.get();
       if (instanceSelector === undefined) {
         return;
       }
+      const name = z.string().parse(formData.get("name"));
       const [instanceId] = instanceSelector;
-      const newHeaders = headersField.value.flatMap((header) => {
-        // exclude invalid headers
-        if (
-          validateHeaderName(header.name) !== undefined ||
-          validateHeaderValue(header.value, scope) !== undefined
-        ) {
-          return [];
-        }
-        return [header];
-      });
-      // clear invalid headers on save
-      headersField.onChange(newHeaders);
       const newResource: Resource = {
         id: resource?.id ?? nanoid(),
-        name: nameField.value,
-        url: urlField.value,
+        name,
+        url,
         method,
-        headers: newHeaders,
-        body: bodyField.value,
+        headers,
+        body,
       };
       const newVariable: DataSource = {
         id: variable?.id ?? nanoid(),
         // preserve existing instance scope when edit
         scopeInstanceId: variable?.scopeInstanceId ?? instanceId,
-        name: nameField.value,
+        name,
         type: "resource",
         resourceId: newResource.id,
       };
@@ -525,78 +613,27 @@ export const ResourceForm = forwardRef<
     },
   }));
 
-  const urlId = useId();
-
   return (
     <>
-      <Flex direction="column" css={{ gap: theme.spacing[3] }}>
-        <Label
-          htmlFor={urlId}
-          css={{ display: "flex", alignItems: "center", gap: theme.spacing[3] }}
-        >
-          URL
-          <Tooltip
-            content={
-              "You can paste a URL or cURL. cURL is a format that can be executed directly in your terminal because it contains the entire Resource configuration."
-            }
-            variant="wrapped"
-            disableHoverableContent={true}
-          >
-            <InfoCircleIcon tabIndex={0} />
-          </Tooltip>
-        </Label>
-        <BindingControl>
-          <InputErrorsTooltip
-            errors={urlField.error ? [urlField.error] : undefined}
-          >
-            <TextArea
-              grow
-              id={urlId}
-              rows={1}
-              // expressions with variables cannot be edited
-              disabled={isLiteralExpression(urlField.value) === false}
-              color={urlField.error ? "error" : undefined}
-              value={String(
-                evaluateExpressionWithinScope(urlField.value, scope)
-              )}
-              // update text value as string literal
-              onChange={(value) => {
-                const curl = parseCurl(value);
-                if (curl) {
-                  // update all feilds when curl is paste into url field
-                  urlField.onChange(JSON.stringify(curl.url));
-                  setMethod(curl.method);
-                  headersField.onChange(
-                    curl.headers.map((header) => ({
-                      name: header.name,
-                      value: JSON.stringify(header.value),
-                    }))
-                  );
-                  bodyField.onChange(JSON.stringify(curl.body));
-                } else {
-                  urlField.onChange(JSON.stringify(value));
-                }
-              }}
-              onBlur={urlField.onBlur}
-            />
-          </InputErrorsTooltip>
-          <BindingPopover
-            scope={scope}
-            aliases={aliases}
-            variant={isLiteralExpression(urlField.value) ? "default" : "bound"}
-            value={urlField.value}
-            onChange={(value) => {
-              urlField.onChange(value);
-              urlField.onBlur();
-            }}
-            onRemove={(evaluatedValue) => {
-              urlField.onChange(JSON.stringify(evaluatedValue));
-              urlField.onBlur();
-            }}
-          />
-        </BindingControl>
-      </Flex>
-      <Flex direction="column" css={{ gap: theme.spacing[3] }}>
+      <UrlField
+        scope={scope}
+        aliases={aliases}
+        value={url}
+        onChange={setUrl}
+        onCurlPaste={(curl) => {
+          // update all feilds when curl is paste into url field
+          setUrl(JSON.stringify(curl.url));
+          setMethod(curl.method);
+          setHeaders(
+            curl.headers.map((header) => ({
+              name: header.name,
+              value: JSON.stringify(header.value),
+            }))
+          );
+          setBody(JSON.stringify(curl.body));
+        }}
+      />
+      <Grid gap={1}>
         <Label>Method</Label>
         <Select<Resource["method"]>
           options={["get", "post", "put", "delete"]}
@@ -604,29 +641,338 @@ export const ResourceForm = forwardRef<
           value={method}
           onChange={(newValue) => setMethod(newValue)}
         />
-      </Flex>
-      <Flex direction="column" css={{ gap: theme.spacing[3] }}>
-        <Label>Headers</Label>
-        <Headers
-          editorScope={scope}
-          editorAliases={aliases}
-          headers={headersField.value}
-          onChange={headersField.onChange}
-        />
-      </Flex>
+      </Grid>
+      <Headers
+        scope={scope}
+        aliases={aliases}
+        headers={headers}
+        onChange={setHeaders}
+      />
       {method !== "get" && (
         <BodyField
-          editorScope={scope}
-          editorAliases={aliases}
-          contentType={
-            headersField.value.find(
-              (header) => header.name.toLowerCase() === "content-type"
-            )?.value
-          }
-          bodyField={bodyField}
+          scope={scope}
+          aliases={aliases}
+          contentType={evaluatedContentType}
+          value={body ?? ""}
+          onChange={(newBody) => {
+            const evaluatedValue = evaluateExpressionWithinScope(
+              newBody,
+              scope
+            );
+            // automatically add Content-Type: application/json header
+            // when value is object
+            if (
+              typeof evaluatedValue === "object" &&
+              evaluatedValue !== null &&
+              evaluatedContentType !== "application/json"
+            ) {
+              setHeaders((prevHeaders) => {
+                const newHeaders = prevHeaders.filter(isContentTypeHeader);
+                newHeaders.push({
+                  name: "Content-Type",
+                  value: JSON.stringify("application/json"),
+                });
+                return newHeaders;
+              });
+            }
+            setBody(newBody);
+          }}
         />
       )}
     </>
   );
 });
 ResourceForm.displayName = "ResourceForm";
+
+export const SystemResourceForm = forwardRef<
+  undefined | PanelApi,
+  { variable?: DataSource }
+>(({ variable }, ref) => {
+  const resources = useStore($resources);
+
+  const resource =
+    variable?.type === "resource"
+      ? resources.get(variable.resourceId)
+      : undefined;
+
+  const method = "get";
+
+  const localResources = [
+    {
+      label: "Sitemap",
+      value: JSON.stringify(sitemapResourceUrl),
+      description: "Resource that loads the sitemap data of the current site.",
+    },
+  ];
+
+  const [localResource, setLocalResource] = useState(() => {
+    return (
+      localResources.find(
+        (localResource) => localResource.value === resource?.url
+      ) ?? localResources[0]
+    );
+  });
+
+  useImperativeHandle(ref, () => ({
+    save: (formData) => {
+      const instanceSelector = $selectedInstanceSelector.get();
+      if (instanceSelector === undefined) {
+        return;
+      }
+      const name = z.string().parse(formData.get("name"));
+      const [instanceId] = instanceSelector;
+      const newResource: Resource = {
+        id: resource?.id ?? nanoid(),
+        name,
+        control: "system",
+        url: localResource.value,
+        method,
+        headers: [],
+      };
+      const newVariable: DataSource = {
+        id: variable?.id ?? nanoid(),
+        // preserve existing instance scope when edit
+        scopeInstanceId: variable?.scopeInstanceId ?? instanceId,
+        name,
+        type: "resource",
+        resourceId: newResource.id,
+      };
+      serverSyncStore.createTransaction(
+        [$dataSources, $resources],
+        (dataSources, resources) => {
+          dataSources.set(newVariable.id, newVariable);
+          resources.set(newResource.id, newResource);
+        }
+      );
+    },
+  }));
+
+  const resourceId = useId();
+
+  return (
+    <>
+      <Flex direction="column" css={{ gap: theme.spacing[3] }}>
+        <Label htmlFor={resourceId}>Resource</Label>
+        <Select
+          options={localResources}
+          getLabel={(option) => option.label}
+          getValue={(option) => option.value}
+          getDescription={(option) => {
+            return (
+              <Box css={{ width: theme.spacing[25] }}>
+                {option?.description}
+              </Box>
+            );
+          }}
+          value={localResource}
+          onChange={setLocalResource}
+        />
+      </Flex>
+    </>
+  );
+});
+SystemResourceForm.displayName = "SystemResourceForm";
+
+const zGraphqlBody = z.object({
+  query: z.string(),
+  variables: z.optional(z.record(z.unknown())),
+});
+
+export const GraphqlResourceForm = forwardRef<
+  undefined | PanelApi,
+  { variable?: DataSource }
+>(({ variable }, ref) => {
+  const { scope, aliases } = useScope({ variable });
+
+  const resources = useStore($resources);
+  const resource =
+    variable?.type === "resource"
+      ? resources.get(variable.resourceId)
+      : undefined;
+
+  const [url, setUrl] = useState(resource?.url ?? `""`);
+  const [headers, setHeaders] = useState(
+    resource?.headers ?? [
+      { name: "Content-Type", value: JSON.stringify("application/json") },
+    ]
+  );
+
+  const [bodyExpressions] = useState(() =>
+    parseObjectExpression(resource?.body ?? "")
+  );
+  const queryId = useId();
+  const [query, setQuery] = useState(
+    () =>
+      evaluateExpressionWithinScope(bodyExpressions.get("query") ?? "", {}) ??
+      ""
+  );
+  const [variables, setVariables] = useState(
+    () => bodyExpressions.get("variables") ?? "{}"
+  );
+  const [isVariablesLiteral, setIsVariablesLiteral] = useState(() =>
+    isLiteralExpression(variables)
+  );
+  const [variablesError, setVariablesError] = useState("");
+  const variablesRef = useRef<HTMLInputElement>(null);
+  useEffect(() => {
+    const evaluatedValue = evaluateExpressionWithinScope(variables, scope);
+    variablesRef.current?.setCustomValidity(
+      typeof evaluatedValue === "object" && evaluatedValue !== null
+        ? ""
+        : "Expected valid JSON object in GraphQL variables"
+    );
+    setVariablesError("");
+  }, [variables, scope]);
+
+  useImperativeHandle(ref, () => ({
+    save: (formData) => {
+      const instanceSelector = $selectedInstanceSelector.get();
+      if (instanceSelector === undefined) {
+        return;
+      }
+      const name = z.string().parse(formData.get("name"));
+      const body = generateObjectExpression(
+        new Map([
+          ["query", JSON.stringify(query)],
+          ["variables", variables],
+        ])
+      );
+      const [instanceId] = instanceSelector;
+      const newResource: Resource = {
+        id: resource?.id ?? nanoid(),
+        name,
+        control: "graphql",
+        url,
+        method: "post",
+        headers,
+        body,
+      };
+      const newVariable: DataSource = {
+        id: variable?.id ?? nanoid(),
+        // preserve existing instance scope when edit
+        scopeInstanceId: variable?.scopeInstanceId ?? instanceId,
+        name,
+        type: "resource",
+        resourceId: newResource.id,
+      };
+      serverSyncStore.createTransaction(
+        [$dataSources, $resources],
+        (dataSources, resources) => {
+          dataSources.set(newVariable.id, newVariable);
+          resources.set(newResource.id, newResource);
+        }
+      );
+    },
+  }));
+
+  return (
+    <>
+      <UrlField
+        scope={scope}
+        aliases={aliases}
+        value={url}
+        onChange={setUrl}
+        onCurlPaste={(curl) => {
+          // update all feilds when curl is paste into url field
+          setUrl(JSON.stringify(curl.url));
+          setHeaders(
+            curl.headers.map((header) => ({
+              name: header.name,
+              value: JSON.stringify(header.value),
+            }))
+          );
+          const body = zGraphqlBody.safeParse(curl.body);
+          if (body.success) {
+            setQuery(body.data.query);
+            setVariables(JSON.stringify(body.data.variables, null, 2));
+          }
+        }}
+      />
+
+      <Grid gap={1}>
+        <Label htmlFor={queryId}>Query</Label>
+        <EditorDialogControl>
+          <TextArea
+            name="query"
+            id={queryId}
+            rows={3}
+            maxRows={10}
+            autoGrow={true}
+            value={query}
+            onChange={setQuery}
+          />
+          <EditorDialog
+            title="GraphQL Query"
+            content={<TextArea grow={true} value={query} onChange={setQuery} />}
+          >
+            <EditorDialogButton />
+          </EditorDialog>
+        </EditorDialogControl>
+      </Grid>
+
+      <Grid gap={1}>
+        <Label>GraphQL Variables</Label>
+        {/* use invisible text input to reflect expression editor in form
+            type=hidden does not emit invalid event */}
+        <input
+          ref={variablesRef}
+          style={{ display: "none" }}
+          type="text"
+          name="variables"
+          data-color={variablesError ? "error" : undefined}
+          value={variables}
+          onChange={() => {}}
+          onInvalid={(event) =>
+            setVariablesError(event.currentTarget.validationMessage)
+          }
+        />
+        <BindingControl>
+          <InputErrorsTooltip
+            errors={variablesError ? [variablesError] : undefined}
+          >
+            {/* wrap with div to position error tooltip */}
+            <div>
+              <ExpressionEditor
+                color={variablesError ? "error" : undefined}
+                readOnly={isVariablesLiteral === false}
+                value={
+                  isVariablesLiteral
+                    ? variables
+                    : JSON.stringify(
+                        evaluateExpressionWithinScope(variables, scope),
+                        null,
+                        2
+                      ) ?? ""
+                }
+                onChange={setVariables}
+                onBlur={() => variablesRef.current?.checkValidity()}
+              />
+            </div>
+          </InputErrorsTooltip>
+          <BindingPopover
+            scope={scope}
+            aliases={aliases}
+            variant={isVariablesLiteral ? "default" : "bound"}
+            value={variables}
+            onChange={(value) => {
+              setVariables(value);
+              setIsVariablesLiteral(isLiteralExpression(value));
+            }}
+            onRemove={(evaluatedValue) => {
+              setVariables(JSON.stringify(evaluatedValue));
+              setIsVariablesLiteral(true);
+            }}
+          />
+        </BindingControl>
+      </Grid>
+
+      <Headers
+        scope={scope}
+        aliases={aliases}
+        headers={headers}
+        onChange={setHeaders}
+      />
+    </>
+  );
+});
+GraphqlResourceForm.displayName = "GraphqlResourceForm";

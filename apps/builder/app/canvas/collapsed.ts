@@ -115,8 +115,8 @@ const recalculate = () => {
     instanceIdSet.size < MAX_SIZE_TO_USE_OPTIMIZATION
       ? Array.from(instanceIdSet)
       : rootInstanceId !== undefined
-      ? [rootInstanceId]
-      : [];
+        ? [rootInstanceId]
+        : [];
 
   instanceIdSet.clear();
   if (instanceIds.length === 0) {
@@ -168,7 +168,11 @@ const recalculate = () => {
     const elementPosition = window.getComputedStyle(element).position;
 
     if (element.parentElement) {
-      if (elementPosition === "absolute" || elementPosition === "fixed") {
+      if (
+        elementPosition === "absolute" ||
+        elementPosition === "fixed" ||
+        element.offsetParent == null
+      ) {
         parentsWithAbsoluteChildren.set(
           element.parentElement,
           parentsWithAbsoluteChildren.get(element.parentElement) ?? 0

@@ -1,6 +1,6 @@
 {
   "name": "@webstudio-is/css-data",
-  "version": "0.145.0",
+  "version": "0.0.0",
   "description": "CSS Data",
   "author": "Webstudio <github@webstudio.is>",
   "homepage": "https://webstudio.is",
@@ -12,19 +12,20 @@
     "build:descriptions": "tsx ./bin/property-value-descriptions.ts",
     "test": "NODE_OPTIONS=--experimental-vm-modules jest"
   },
+  "bin": {
+    "css-to-ws": "./bin/css-to-ws.ts"
+  },
   "devDependencies": {
     "@jest/globals": "^29.7.0",
     "@types/css-tree": "^2.3.1",
-    "@types/hyphenate-style-name": "^1.0.0",
     "@types/node": "^20.12.7",
     "@webstudio-is/jest-config": "workspace:*",
     "@webstudio-is/react-sdk": "workspace:*",
     "@webstudio-is/tsconfig": "workspace:*",
     "html-tags": "^3.3.1",
-    "mdn-data": "2.0.32",
-    "tsx": "^4.7.2",
+    "mdn-data": "2.8.0",
     "type-fest": "^4.3.1",
-    "typescript": "5.4.5",
+    "typescript": "5.5.2",
     "zod": "^3.22.4"
   },
   "peerDependencies": {
@@ -37,13 +38,12 @@
   "private": true,
   "sideEffects": false,
   "dependencies": {
-    "@unocss/core": "^0.56.4",
-    "@unocss/preset-uno": "^0.56.4",
+    "@unocss/core": "^0.61.0",
+    "@unocss/preset-uno": "^0.61.0",
     "@webstudio-is/css-engine": "workspace:*",
-    "change-case": "^5.0.2",
+    "change-case": "^5.4.4",
     "colord": "^2.9.3",
     "css-tree": "^2.3.1",
-    "hyphenate-style-name": "^1.0.4",
     "openai": "^3.2.1",
     "warn-once": "^0.1.1"
   }

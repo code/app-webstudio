@@ -79,19 +79,7 @@ export const metaTabs: WsComponentMeta = {
     {
       type: "instance",
       component: "Tabs",
-      variables: {
-        tabsValue: { initialValue: "0" },
-      },
-      props: [
-        { type: "expression", name: "value", code: "tabsValue" },
-        {
-          name: "onValueChange",
-          type: "action",
-          value: [
-            { type: "execute", args: ["value"], code: `tabsValue = value` },
-          ],
-        },
-      ],
+      props: [{ type: "string", name: "defaultValue", value: "0" }],
       children: [
         {
           type: "instance",
@@ -112,13 +100,15 @@ export const metaTabs: WsComponentMeta = {
               type: "instance",
               component: "TabsTrigger",
               styles: tabsTriggerStyles,
-              children: [{ type: "text", value: "Account" }],
+              children: [{ type: "text", value: "Account", placeholder: true }],
             },
             {
               type: "instance",
               component: "TabsTrigger",
               styles: tabsTriggerStyles,
-              children: [{ type: "text", value: "Password" }],
+              children: [
+                { type: "text", value: "Password", placeholder: true },
+              ],
             },
           ],
         },
@@ -127,14 +117,24 @@ export const metaTabs: WsComponentMeta = {
           component: "TabsContent",
           styles: tabsContentStyles,
           children: [
-            { type: "text", value: "Make changes to your account here." },
+            {
+              type: "text",
+              value: "Make changes to your account here.",
+              placeholder: true,
+            },
           ],
         },
         {
           type: "instance",
           component: "TabsContent",
           styles: tabsContentStyles,
-          children: [{ type: "text", value: "Change your password here." }],
+          children: [
+            {
+              type: "text",
+              value: "Change your password here.",
+              placeholder: true,
+            },
+          ],
         },
       ],
     },

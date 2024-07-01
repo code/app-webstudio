@@ -19,16 +19,13 @@ import {
   AuthorizationError,
   authorizeProject,
 } from "@webstudio-is/trpc-interface/index.server";
-import { loadAssetsByProject } from "@webstudio-is/asset-uploader/index.server";
 import { createContext } from "~/shared/context.server";
 import { ErrorMessage } from "~/shared/error";
 import { loginPath } from "~/shared/router-utils";
 import type { BuilderProps } from "~/builder/index.client";
 import env from "~/env/env.server";
-import { staticEnv } from "~/env/env.static.server";
 
 import builderStyles from "~/builder/builder.css?url";
-// eslint-disable-next-line import/no-internal-modules
 import prismStyles from "prismjs/themes/prism-solarizedlight.min.css?url";
 import { ClientOnly } from "~/shared/client-only";
 
@@ -44,9 +41,6 @@ export const loader = async ({
   params,
   request,
 }: LoaderFunctionArgs): Promise<BuilderProps> => {
-  // TODO: remove after release 17 apr 2024
-  console.info({ staticEnv });
-
   const context = await createContext(request);
 
   try {
@@ -75,8 +69,6 @@ export const loader = async ({
     }
 
     const devBuild = await loadBuildByProjectId(project.id);
-
-    const assets = await loadAssetsByProject(project.id, context);
 
     const end = Date.now();
 
@@ -113,8 +105,10 @@ export const loader = async ({
       project,
       publisherHost,
       imageBaseUrl: env.IMAGE_BASE_URL,
-      build: devBuild,
-      assets: assets.map((asset) => [asset.id, asset]),
+      build: {
+        id: devBuild.id,
+        version: devBuild.version,
+      },
       authToken,
       authTokenPermissions,
       authPermit,
@@ -148,8 +142,8 @@ export const ErrorBoundary = () => {
   const message = isRouteErrorResponse(error)
     ? error.data.message ?? error.data
     : error instanceof Error
-    ? error.message
-    : String(error);
+      ? error.message
+      : String(error);
 
   return <ErrorMessage message={message} />;
 };
@@ -164,7 +158,9 @@ export const BuilderRoute = () => {
 
   return (
     <ClientOnly>
-      <Builder {...data} />
+      {/* Using a key here ensures that certain effects are re-executed inside the builder,
+      especially in cases like cloning a project */}
+      <Builder key={data.project.id} {...data} />
     </ClientOnly>
   );
 };

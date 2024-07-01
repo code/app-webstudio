@@ -1,5 +1,9 @@
 import { useState, useEffect } from "react";
-import type { KeywordValue } from "@webstudio-is/css-engine";
+import {
+  toValue,
+  type FunctionValue,
+  type KeywordValue,
+} from "@webstudio-is/css-engine";
 import {
   Label,
   Tooltip,
@@ -19,10 +23,11 @@ import {
   type TimingFunctions,
   findTimingFunctionFromValue,
 } from "./transition-utils";
+import { parseTransitionLonghandProperty } from "@webstudio-is/css-data";
 
 type TransitionTimingProps = {
-  timing: KeywordValue;
-  onTimingSelection: (params: { timing: KeywordValue }) => void;
+  timing: KeywordValue | FunctionValue;
+  onTimingSelection: (params: { timing: KeywordValue | FunctionValue }) => void;
 };
 
 const options: TimingFunctions[] = [
@@ -35,18 +40,48 @@ export const TransitionTiming = ({
   onTimingSelection,
 }: TransitionTimingProps) => {
   const [value, setValue] = useState<TimingFunctions | "custom">(
-    findTimingFunctionFromValue(timing.value) ?? "custom"
+    findTimingFunctionFromValue(toValue(timing)) ?? "custom"
   );
 
   useEffect(
-    () => setValue(findTimingFunctionFromValue(timing.value) ?? "custom"),
-    [timing.value]
+    () => setValue(findTimingFunctionFromValue(toValue(timing)) ?? "custom"),
+    [timing]
   );
+
+  const handleTimingChange = (value: TimingFunctions | "custom") => {
+    setValue(value);
+
+    if (value === "custom") {
+      onTimingSelection({ timing: { type: "keyword", value: "" } });
+      return;
+    }
+
+    const selectedTiming = timingFunctions[value];
+    const longhandValue = parseTransitionLonghandProperty(
+      "transitionTimingFunction",
+      selectedTiming
+    );
+
+    if (longhandValue.type === "invalid") {
+      return;
+    }
+
+    const timingValue = longhandValue.value[0];
+    const isValidTransitionTimingFunc =
+      timingValue.type === "keyword" || timingValue.type === "function";
+
+    if (isValidTransitionTimingFunc === true) {
+      onTimingSelection({
+        timing: timingValue,
+      });
+    }
+  };
 
   return (
     <>
       <Flex align="center">
         <Tooltip
+          variant="wrapped"
           content={
             <Flex gap="2" direction="column">
               <Text variant="regularBold">Easing</Text>
@@ -54,13 +89,8 @@ export const TransitionTiming = ({
                 transition-timing-function
               </Text>
               <Text>
-                Affects the look and feel of the
-                <br />
-                animation by varying the speed
-                <br />
-                of the transition at different
-                <br />
-                points in its duration.
+                Affects the look and feel of the animation by varying the speed
+                of the transition at different points in its duration.
               </Text>
             </Flex>
           }
@@ -68,22 +98,7 @@ export const TransitionTiming = ({
           <Label css={{ display: "inline" }}>Easing</Label>
         </Tooltip>
       </Flex>
-      <Select
-        options={options}
-        value={value}
-        onChange={(value) => {
-          setValue(value);
-
-          if (value === "custom") {
-            onTimingSelection({ timing: { type: "keyword", value: "" } });
-            return;
-          }
-
-          onTimingSelection({
-            timing: { type: "keyword", value: timingFunctions[value] },
-          });
-        }}
-      >
+      <Select options={options} value={value} onChange={handleTimingChange}>
         <SelectGroup>
           <SelectLabel>Default</SelectLabel>
           {Object.keys(defaultFunctions).map((defaultFunc) => {

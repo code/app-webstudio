@@ -13,6 +13,8 @@ import {
   HtmlEmbed as HtmlEmbed,
 } from "@webstudio-is/sdk-components-react";
 
+export const siteName = "Fixture Site";
+
 export const favIconAsset: ImageAsset | undefined = {
   id: "cd1e9fad-8df1-45c6-800f-05fda2d2469f",
   name: "home_wsKvRSqvkajPPBeycZ-C8.svg",
@@ -37,7 +39,7 @@ const Page = ({}: { system: any }) => {
     <Body
       data-ws-id="LW98_-srDnnagkR10lsk4"
       data-ws-component="Body"
-      className="crro89i ca0mhw9 c1ldy0s3 c1t3ec4y"
+      className="cjrgi00"
     >
       <Heading data-ws-id="SHXddDLFWST_sy44UfGQO" data-ws-component="Heading">
         {"Script Test"}

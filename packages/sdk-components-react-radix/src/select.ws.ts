@@ -116,7 +116,6 @@ export const metaSelect: WsComponentMeta = {
       component: "Select",
       variables: {
         selectValue: { initialValue: "" },
-        selectOpen: { initialValue: false },
       },
       props: [
         {
@@ -129,18 +128,6 @@ export const metaSelect: WsComponentMeta = {
           type: "action",
           value: [
             { type: "execute", args: ["value"], code: `selectValue = value` },
-          ],
-        },
-        {
-          name: "open",
-          type: "expression",
-          code: "selectOpen",
-        },
-        {
-          name: "onOpenChange",
-          type: "action",
-          value: [
-            { type: "execute", args: ["open"], code: `selectOpen = open` },
           ],
         },
       ],
@@ -225,15 +212,21 @@ export const metaSelect: WsComponentMeta = {
               children: [
                 createSelectItem({
                   props: [{ name: "value", type: "string", value: "light" }],
-                  children: [{ type: "text", value: "Light" }],
+                  children: [
+                    { type: "text", value: "Light", placeholder: true },
+                  ],
                 }),
                 createSelectItem({
                   props: [{ name: "value", type: "string", value: "dark" }],
-                  children: [{ type: "text", value: "Dark" }],
+                  children: [
+                    { type: "text", value: "Dark", placeholder: true },
+                  ],
                 }),
                 createSelectItem({
                   props: [{ name: "value", type: "string", value: "system" }],
-                  children: [{ type: "text", value: "System" }],
+                  children: [
+                    { type: "text", value: "System", placeholder: true },
+                  ],
                 }),
               ],
             },

@@ -6,6 +6,7 @@ import type {
   Unit,
 } from "@webstudio-is/css-engine";
 import { cssTryParseValue, isValidDeclaration } from "../parse-css-value";
+import { colord } from "colord";
 
 /*
   https://github.com/webstudio-is/webstudio/issues/1016
@@ -27,7 +28,7 @@ export const parseFilter = (input: string): TupleValue | InvalidValue => {
   for (const cleanupKeyword of cleanupKeywords) {
     tokenStream = tokenStream.startsWith(cleanupKeyword)
       ? tokenStream.slice(cleanupKeyword.length).trim()
-      : tokenStream;
+      : tokenStream.trim();
   }
 
   const cssAst = cssTryParseValue(tokenStream);
@@ -38,7 +39,7 @@ export const parseFilter = (input: string): TupleValue | InvalidValue => {
     };
   }
 
-  const isValidFilterDecleration = isValidDeclaration("filter", input);
+  const isValidFilterDecleration = isValidDeclaration("filter", tokenStream);
   if (isValidFilterDecleration === false) {
     return {
       type: "invalid",
@@ -81,6 +82,20 @@ export const parseFilter = (input: string): TupleValue | InvalidValue => {
                 type: "keyword",
                 value: arg.value,
               });
+            }
+
+            if (arg.type === "Function" || arg.type === "Hash") {
+              const colorValue = colord(csstree.generate(arg));
+              if (colorValue.isValid() === true) {
+                const rgb = colorValue.toRgb();
+                tuple.push({
+                  type: "rgb",
+                  alpha: rgb.a,
+                  r: rgb.r,
+                  g: rgb.g,
+                  b: rgb.b,
+                });
+              }
             }
           }
 

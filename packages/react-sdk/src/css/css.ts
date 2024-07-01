@@ -8,16 +8,20 @@ import type {
   Assets,
   Breakpoints,
   Instance,
+  Instances,
+  Props,
   StyleSourceSelections,
   Styles,
 } from "@webstudio-is/sdk";
 import type { WsComponentMeta } from "../components/component-meta";
 import { idAttribute } from "../props";
-import { addGlobalRules } from "./global-rules";
-import { getPresetStyleRules } from "./style-rules";
+import { descendantComponent } from "../core-components";
+import { addGlobalRules, addPresetRules } from "./global-rules";
 
 export type CssConfig = {
   assets: Assets;
+  instances: Instances;
+  props: Props;
   breakpoints: Breakpoints;
   styles: Styles;
   styleSourceSelections: StyleSourceSelections;
@@ -54,6 +58,8 @@ export const createImageValueTransformer =
 
 export const generateCss = ({
   assets,
+  instances,
+  props,
   breakpoints,
   styles,
   styleSourceSelections,
@@ -61,23 +67,29 @@ export const generateCss = ({
   assetBaseUrl,
   atomic,
 }: CssConfig) => {
+  const globalSheet = createRegularStyleSheet({ name: "ssr" });
   const sheet = createRegularStyleSheet({ name: "ssr" });
+  const parentIdByInstanceId = new Map<Instance["id"], Instance["id"]>();
+  for (const instance of instances.values()) {
+    for (const child of instance.children) {
+      if (child.type === "id") {
+        parentIdByInstanceId.set(child.value, instance.id);
+      }
+    }
+  }
 
-  addGlobalRules(sheet, { assets, assetBaseUrl });
+  const descendantSelectorByInstanceId = new Map<Instance["id"], string>();
+  for (const prop of props.values()) {
+    if (prop.name === "selector" && prop.type === "string") {
+      descendantSelectorByInstanceId.set(prop.instanceId, prop.value);
+    }
+  }
+
+  addGlobalRules(globalSheet, { assets, assetBaseUrl });
+  addPresetRules(globalSheet, componentMetas);
 
   for (const breakpoint of breakpoints.values()) {
     sheet.addMediaRule(breakpoint.id, breakpoint);
-  }
-
-  for (const [component, meta] of componentMetas) {
-    const presetStyle = meta.presetStyle;
-    if (presetStyle === undefined) {
-      continue;
-    }
-    const rules = getPresetStyleRules(component, presetStyle);
-    for (const [selector, style] of rules) {
-      sheet.addStyleRule({ style }, selector);
-    }
   }
 
   const imageValueTransformer = createImageValueTransformer(assets, {
@@ -96,20 +108,37 @@ export const generateCss = ({
   }
 
   const instanceByRule = new Map<NestingRule, Instance["id"]>();
-  for (const { instanceId, values } of styleSourceSelections.values()) {
-    const rule = sheet.addNestingRule(`[${idAttribute}="${instanceId}"]`);
+  for (const selection of styleSourceSelections.values()) {
+    let { instanceId } = selection;
+    const { values } = selection;
+    let descendantSuffix = "";
+    // render selector component as descendant selector
+    const instance = instances.get(instanceId);
+    if (instance?.component === descendantComponent) {
+      const parentId = parentIdByInstanceId.get(instanceId);
+      const descendantSelector = descendantSelectorByInstanceId.get(instanceId);
+      if (parentId && descendantSelector) {
+        descendantSuffix = descendantSelector;
+        instanceId = parentId;
+      }
+    }
+    const rule = sheet.addNestingRule(
+      `[${idAttribute}="${instanceId}"]`,
+      descendantSuffix
+    );
     rule.applyMixins(values);
     instanceByRule.set(rule, instanceId);
   }
 
   if (atomic) {
-    return generateAtomic(sheet, {
+    const { cssText, classesMap } = generateAtomic(sheet, {
       getKey: (rule) => instanceByRule.get(rule) ?? "",
       transformValue: imageValueTransformer,
     });
+    return { cssText: `${globalSheet.cssText}\n${cssText}`, classesMap };
   }
   return {
-    cssText: sheet.cssText,
+    cssText: `${globalSheet.cssText}\n${sheet.cssText}`,
     classesMap: new Map<string, Array<string>>(),
   };
 };

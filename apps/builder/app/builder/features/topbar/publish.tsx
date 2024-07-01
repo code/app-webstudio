@@ -28,11 +28,11 @@ import {
 } from "@webstudio-is/design-system";
 import stripIndent from "strip-indent";
 import {
+  $isPublishDialogOpen,
   $userPlanFeatures,
-  useIsPublishDialogOpen,
 } from "../../shared/nano-states";
 import { validateProjectDomain, type Project } from "@webstudio-is/project";
-import { $authPermit, $publishedOrigin } from "~/shared/nano-states";
+import { $authPermit, $project, $publishedOrigin } from "~/shared/nano-states";
 import {
   Domains,
   getPublishStatusAndText,
@@ -97,6 +97,15 @@ const ChangeProjectDomain = ({
         if (projectData?.success === false) {
           setError(projectData.error);
           return;
+        }
+
+        const currenProject = $project.get();
+
+        if (currenProject?.id === projectData.project.id) {
+          $project.set({
+            ...currenProject,
+            domain: projectData.project.domain,
+          });
         }
 
         setDomain(projectData.project.domain);
@@ -516,12 +525,12 @@ const Content = (props: {
 
 const deployTargets = {
   vercel: {
-    command: "npx vercel",
+    command: "npx vercel@latest",
     docs: "https://vercel.com/docs/cli",
   },
   netlify: {
     command: `
-npx netlify-cli login
+npx netlify-cli@latest login
 npx netlify-cli sites:create
 npx netlify-cli build
 npx netlify-cli deploy`,
@@ -535,7 +544,7 @@ const isDeployTargets = (value: string): value is DeployTargets =>
   Object.keys(deployTargets).includes(value);
 
 const ExportContent = () => {
-  const npxCommand = "npx webstudio";
+  const npxCommand = "npx webstudio@latest";
   const [deployTarget, setDeployTarget] = useState<DeployTargets>("vercel");
 
   return (
@@ -687,7 +696,7 @@ type PublishProps = {
 };
 
 export const PublishButton = ({ projectId }: PublishProps) => {
-  const [isOpen, setIsOpen] = useIsPublishDialogOpen();
+  const isPublishDialogOpen = useStore($isPublishDialogOpen);
   const authPermit = useStore($authPermit);
   const [dialogContentType, setDialogContentType] = useState<
     "publish" | "export"
@@ -707,11 +716,15 @@ export const PublishButton = ({ projectId }: PublishProps) => {
     if (isOpen === false) {
       setDialogContentType("publish");
     }
-    setIsOpen(isOpen);
+    $isPublishDialogOpen.set(isOpen);
   };
 
   return (
-    <FloatingPanelPopover modal open={isOpen} onOpenChange={handleOpenChange}>
+    <FloatingPanelPopover
+      modal
+      open={isPublishDialogOpen}
+      onOpenChange={handleOpenChange}
+    >
       <FloatingPanelAnchor>
         <Tooltip
           side="bottom"

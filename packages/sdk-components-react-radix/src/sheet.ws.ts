@@ -24,23 +24,7 @@ export const meta: WsComponentMeta = {
       type: "instance",
       component: "Dialog",
       label: "Sheet",
-      variables: {
-        sheetOpen: { initialValue: false },
-      },
-      props: [
-        {
-          type: "expression",
-          name: "open",
-          code: "sheetOpen",
-        },
-        {
-          name: "onOpenChange",
-          type: "action",
-          value: [
-            { type: "execute", args: ["open"], code: `sheetOpen = open` },
-          ],
-        },
-      ],
+      props: [],
       children: [
         {
           type: "instance",
@@ -148,6 +132,7 @@ export const meta: WsComponentMeta = {
                             {
                               type: "text",
                               value: "Sheet Title",
+                              placeholder: true,
                             },
                           ],
                         },
@@ -167,6 +152,7 @@ export const meta: WsComponentMeta = {
                             {
                               type: "text",
                               value: "Sheet description text you can edit",
+                              placeholder: true,
                             },
                           ],
                         },
@@ -177,7 +163,11 @@ export const meta: WsComponentMeta = {
                       type: "instance",
                       component: "Text",
                       children: [
-                        { type: "text", value: "The text you can edit" },
+                        {
+                          type: "text",
+                          value: "The text you can edit",
+                          placeholder: true,
+                        },
                       ],
                     },
                   ],

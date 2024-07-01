@@ -31,3 +31,6 @@ export { VimeoPreviewImage } from "./vimeo-preview-image";
 export { VimeoPlayButton } from "./vimeo-play-button";
 export { VimeoSpinner } from "./vimeo-spinner";
 export { XmlNode } from "./xml-node";
+export { Time } from "./time";
+export { Select } from "./select";
+export { Option } from "./option";

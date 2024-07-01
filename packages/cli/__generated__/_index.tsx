@@ -4,6 +4,8 @@
 
 import type { FontAsset, ImageAsset } from "@webstudio-is/sdk";
 
+export const siteName = "";
+
 export const favIconAsset: ImageAsset | undefined = undefined;
 
 export const socialImageAsset: ImageAsset | undefined = undefined;
@@ -12,6 +14,8 @@ export const socialImageAsset: ImageAsset | undefined = undefined;
 export const pageFontAssets: FontAsset[] = [];
 
 export const pageBackgroundImageAssets: ImageAsset[] = [];
+
+export const CustomCode = () => null;
 
 const Page = (_props: { system: any }) => {
   return <></>;

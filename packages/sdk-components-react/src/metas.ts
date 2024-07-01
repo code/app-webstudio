@@ -1,6 +1,7 @@
 export { meta as Slot } from "./slot.ws";
 export { meta as Fragment } from "./fragment.ws";
 export { meta as HtmlEmbed } from "./html-embed.ws";
+export { meta as ContentEmbed } from "./content-embed.ws";
 export { meta as Body } from "./body.ws";
 export { meta as Box } from "./box.ws";
 export { meta as Text } from "./text.ws";
@@ -31,3 +32,6 @@ export { meta as VimeoPreviewImage } from "./vimeo-preview-image.ws";
 export { meta as VimeoPlayButton } from "./vimeo-play-button.ws";
 export { meta as VimeoSpinner } from "./vimeo-spinner.ws";
 export { meta as XmlNode } from "./xml-node.ws";
+export { meta as Time } from "./time.ws";
+export { meta as Select } from "./select.ws";
+export { meta as Option } from "./option.ws";

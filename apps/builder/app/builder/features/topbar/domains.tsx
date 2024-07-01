@@ -22,7 +22,6 @@ import type { DomainStatus } from "@webstudio-is/prisma-client";
 import { CollapsibleDomainSection } from "./collapsible-domain-section";
 import { useCallback, useEffect, useState } from "react";
 import type { PublishStatus } from "@webstudio-is/prisma-client";
-// eslint-disable-next-line import/no-internal-modules
 import { formatDistance } from "date-fns/formatDistance";
 import { Entri } from "./entri";
 import { trpcClient } from "~/shared/trpc/trpc-client";
@@ -103,8 +102,8 @@ export const getPublishStatusAndText = ({
     status === "PUBLISHED"
       ? "Published"
       : status === "FAILED"
-      ? "Publish failed"
-      : "Publishing started";
+        ? "Publish failed"
+        : "Publishing started";
 
   const statusText = `${textStart} ${formatDistance(
     new Date(updatedAt),
@@ -184,8 +183,8 @@ const StatusIcon = (props: { projectDomain: Domain; isLoading: boolean }) => {
           color: props.isLoading
             ? theme.colors.foregroundDisabled
             : isVerifiedActive
-            ? theme.colors.foregroundSuccessText
-            : theme.colors.foregroundDestructive,
+              ? theme.colors.foregroundSuccessText
+              : theme.colors.foregroundDestructive,
         }}
       >
         <Icon />

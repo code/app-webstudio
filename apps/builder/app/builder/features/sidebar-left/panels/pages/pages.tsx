@@ -66,8 +66,8 @@ const ItemSuffix = ({
         ? "Close page settings"
         : "Open page settings"
       : isEditing
-      ? "Close folder settings"
-      : "Open folder settings";
+        ? "Close folder settings"
+        : "Open folder settings";
 
   const buttonRef = useRef<HTMLButtonElement | null>(null);
 
@@ -313,8 +313,12 @@ const PageEditor = ({
       onClose={() => setEditingPageId(undefined)}
       onDelete={() => {
         setEditingPageId(undefined);
+        // switch to home page when deleted currently selected page
         if (editingPageId === currentPageId) {
-          switchPage(currentPageId);
+          const pages = $pages.get();
+          if (pages) {
+            switchPage(pages.homePage.id);
+          }
         }
       }}
       onDuplicate={(newPageId) => {

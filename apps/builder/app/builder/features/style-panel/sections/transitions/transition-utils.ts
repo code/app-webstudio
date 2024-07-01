@@ -1,3 +1,50 @@
+import {
+  FunctionValue,
+  UnparsedValue,
+  type KeywordValue,
+  type LayersValue,
+  type StyleProperty,
+  type TupleValue,
+  type UnitValue,
+} from "@webstudio-is/css-engine";
+import type { StyleInfo } from "../../shared/style-info";
+import type {
+  CreateBatchUpdate,
+  StyleUpdateOptions,
+} from "../../shared/use-style-data";
+import {
+  expandShorthands,
+  extractTransitionProperties,
+  isTransitionLongHandProperty,
+  isValidTransitionValue,
+  parseCssValue,
+  transitionLongHandProperties,
+} from "@webstudio-is/css-data";
+import { camelCase } from "change-case";
+
+export const defaultTransitionProperty: UnparsedValue = {
+  type: "unparsed",
+  value: "opacity",
+};
+export const defaultTransitionDuration: UnitValue = {
+  type: "unit",
+  value: 0,
+  unit: "ms",
+};
+export const defaultTransitionDelay: UnitValue = {
+  type: "unit",
+  value: 0,
+  unit: "ms",
+};
+export const defaultTransitionTimingFunction: KeywordValue = {
+  type: "keyword",
+  value: "ease",
+};
+export const defaultTransitionBehavior: KeywordValue = {
+  type: "keyword",
+  value: "normal",
+};
+
 export const defaultFunctions = {
   linear: "linear",
   ease: "ease",
@@ -59,7 +106,330 @@ export type TimingFunctions =
 export const findTimingFunctionFromValue = (
   timingFunction: string
 ): TimingFunctions | undefined => {
+  const cleanedFuncValue = timingFunction.replace(/\s/g, "");
+
   return (Object.keys(timingFunctions) as TimingFunctions[]).find(
-    (key: TimingFunctions) => timingFunctions[key] === timingFunction
+    (key: TimingFunctions) => timingFunctions[key] === cleanedFuncValue
   );
+};
+
+export type TransitionProperties =
+  (typeof transitionLongHandProperties)[number];
+
+export const getTransitionProperties = (
+  currentyStyle: StyleInfo
+): Record<TransitionProperties, LayersValue> => {
+  const properties: Record<TransitionProperties, LayersValue> = {
+    transitionProperty: { type: "layers", value: [] },
+    transitionTimingFunction: { type: "layers", value: [] },
+    transitionDelay: { type: "layers", value: [] },
+    transitionDuration: { type: "layers", value: [] },
+    transitionBehavior: { type: "layers", value: [] },
+  };
+  for (const property of transitionLongHandProperties) {
+    const value = currentyStyle[property];
+
+    if (value !== undefined && value.value.type === "layers") {
+      properties[property] = value.value;
+    }
+  }
+
+  return properties;
+};
+
+const getValueOrRepeatLast = (arr: LayersValue["value"], index: number) => {
+  return arr[index % arr.length];
+};
+
+export const convertIndividualTransitionToLayers = (
+  properties: Record<TransitionProperties, LayersValue>
+) => {
+  const layers: { type: "layers"; value: Array<TupleValue> } = {
+    type: "layers",
+    value: [],
+  };
+
+  const {
+    transitionProperty,
+    transitionDuration,
+    transitionDelay,
+    transitionTimingFunction,
+    transitionBehavior,
+  } = properties;
+
+  // https://developer.mozilla.org/en-US/docs/Web/CSS/transition-timing-function
+  // You may specify multiple easing, duration and delay values;
+  // each one will be applied to the corresponding property as specified by the transition-property property,
+  // which acts as a transition-property list. If there are fewer easing, duration and transition values specified than in the transition-property list,
+  // the user agent must calculate which value is used by repeating the list of values until there is one for each transition property.
+  // If there are more values, the list is truncated to the right size. In both cases, the CSS declaration stays valid.
+  // And so, we take the lenght of the transiton-property as the base length of the layers
+
+  for (let index = 0; index < transitionProperty.value.length; index++) {
+    const property = getValueOrRepeatLast(transitionProperty.value, index);
+    const duration =
+      getValueOrRepeatLast(transitionDuration.value, index) ??
+      defaultTransitionDuration;
+    const timingFunction =
+      getValueOrRepeatLast(transitionTimingFunction.value, index) ??
+      defaultTransitionTimingFunction;
+    const delay =
+      getValueOrRepeatLast(transitionDelay.value, index) ??
+      defaultTransitionDelay;
+    const behavior =
+      getValueOrRepeatLast(transitionBehavior.value, index) ??
+      defaultTransitionBehavior;
+
+    if (
+      isValidTransitionValue(property) &&
+      isValidTransitionValue(duration) &&
+      isValidTransitionValue(timingFunction) &&
+      isValidTransitionValue(delay) &&
+      isValidTransitionValue(behavior)
+    ) {
+      const layer: TupleValue = {
+        type: "tuple",
+        value: [property, duration, timingFunction, delay],
+        hidden: property.hidden ?? false,
+      };
+      layers.value.push(layer);
+    }
+  }
+
+  return layers;
+};
+
+export const deleteTransitionProperties = (props: {
+  createBatchUpdate: CreateBatchUpdate;
+}) => {
+  const batch = props.createBatchUpdate();
+  transitionLongHandProperties.forEach((property) => {
+    batch.deleteProperty(property);
+  });
+  batch.publish();
+};
+
+export const addDefaultTransitionLayer = (props: {
+  createBatchUpdate: CreateBatchUpdate;
+  currentStyle: StyleInfo;
+}) => {
+  const { createBatchUpdate, currentStyle } = props;
+  const properties = getTransitionProperties(currentStyle);
+  const batch = createBatchUpdate();
+  batch.setProperty("transitionProperty")({
+    type: "layers",
+    value: [...properties.transitionProperty.value, defaultTransitionProperty],
+  });
+  batch.setProperty("transitionTimingFunction")({
+    type: "layers",
+    value: [
+      ...properties.transitionTimingFunction.value,
+      defaultTransitionTimingFunction,
+    ],
+  });
+  batch.setProperty("transitionDuration")({
+    type: "layers",
+    value: [...properties.transitionDuration.value, defaultTransitionDuration],
+  });
+  batch.setProperty("transitionDelay")({
+    type: "layers",
+    value: [...properties.transitionDelay.value, defaultTransitionDelay],
+  });
+  batch.setProperty("transitionBehavior")({
+    type: "layers",
+    value: [...properties.transitionBehavior.value, defaultTransitionBehavior],
+  });
+  batch.publish();
+};
+
+export const deleteTransitionLayer = (props: {
+  index: number;
+  createBatchUpdate: CreateBatchUpdate;
+  currentStyle: StyleInfo;
+  options?: StyleUpdateOptions;
+}) => {
+  const {
+    index,
+    createBatchUpdate,
+    currentStyle,
+    options = { isEphemeral: false },
+  } = props;
+
+  const properties = getTransitionProperties(currentStyle);
+  const batch = createBatchUpdate();
+  transitionLongHandProperties.forEach((property) => {
+    const value = properties[property].value;
+    batch.setProperty(property)({
+      type: "layers",
+      value: value.filter((_, i) => i !== index),
+    });
+  });
+  batch.publish(options);
+};
+
+// @todo support editing transition-behavior
+export const editTransitionLayer = (props: {
+  index: number;
+  layers: LayersValue;
+  options: StyleUpdateOptions;
+  currentStyle: StyleInfo;
+  createBatchUpdate: CreateBatchUpdate;
+}) => {
+  const { index, layers, createBatchUpdate, options, currentStyle } = props;
+  const batch = createBatchUpdate();
+
+  const newTransitionProperties: Array<KeywordValue | UnparsedValue> = [];
+  const newTransitionDurations: UnitValue[] = [];
+  const newTransitionDelays: UnitValue[] = [];
+  const newTransitionTimingFunctions: Array<KeywordValue | FunctionValue> = [];
+
+  for (const layer of layers.value) {
+    if (layer.type !== "tuple") {
+      continue;
+    }
+
+    const {
+      property,
+      duration = defaultTransitionDuration,
+      timing = defaultTransitionTimingFunction,
+      delay = defaultTransitionDelay,
+    } = extractTransitionProperties(layer);
+
+    // transition-property can't be undefined
+    if (property === undefined) {
+      return;
+    }
+
+    newTransitionProperties.push(property);
+    newTransitionDurations.push(duration);
+    newTransitionDelays.push(delay);
+    newTransitionTimingFunctions.push(timing);
+  }
+
+  const existingTransitionProperties = getTransitionProperties(currentStyle);
+  const {
+    transitionProperty,
+    transitionDelay,
+    transitionDuration,
+    transitionTimingFunction,
+  } = existingTransitionProperties;
+
+  const newProperty = [...transitionProperty.value];
+  newProperty.splice(index, 1, ...newTransitionProperties);
+  batch.setProperty("transitionProperty")({
+    type: "layers",
+    value: newProperty,
+  });
+
+  const newDuration = [...transitionDuration.value];
+  newDuration.splice(index, 1, ...newTransitionDurations);
+  batch.setProperty("transitionDuration")({
+    type: "layers",
+    value: newDuration,
+  });
+
+  const newTiming = [...transitionTimingFunction.value];
+  newTiming.splice(index, 1, ...newTransitionTimingFunctions);
+  batch.setProperty("transitionTimingFunction")({
+    type: "layers",
+    value: newTiming,
+  });
+
+  const newDelay = [...transitionDelay.value];
+  newDelay.splice(index, 1, ...newTransitionDelays);
+  batch.setProperty("transitionDelay")({
+    type: "layers",
+    value: newDelay,
+  });
+
+  batch.publish(options);
+};
+
+export const swapTransitionLayers = (props: {
+  oldIndex: number;
+  newIndex: number;
+  createBatchUpdate: CreateBatchUpdate;
+  currentStyle: StyleInfo;
+}) => {
+  const { oldIndex, newIndex, createBatchUpdate, currentStyle } = props;
+  const properties = getTransitionProperties(currentStyle);
+  const batch = createBatchUpdate();
+
+  for (const property of transitionLongHandProperties) {
+    const layer = properties[property];
+    const layervalue = [...layer.value];
+
+    // You can swap only if there are at least two layers
+    // As we are checking across multiple properties, we can't be sure
+    // which property don't have two layers so we are checking here.
+    if (layervalue.length < 2) {
+      continue;
+    }
+
+    layervalue.splice(oldIndex, 1);
+    layervalue.splice(newIndex, 0, layer.value[oldIndex]);
+    batch.setProperty(property)({
+      ...layer,
+      value: layervalue,
+    });
+  }
+
+  batch.publish();
+};
+
+export const hideTransitionLayer = (props: {
+  index: number;
+  createBatchUpdate: CreateBatchUpdate;
+  currentStyle: StyleInfo;
+}) => {
+  const { createBatchUpdate, index, currentStyle } = props;
+  const properties = getTransitionProperties(currentStyle);
+  const batch = createBatchUpdate();
+
+  for (const property of transitionLongHandProperties) {
+    const propertyLayer = properties[property];
+    batch.setProperty(property)({
+      type: "layers",
+      value: propertyLayer.value.map((layer, i) => {
+        if (
+          layer.type !== "keyword" &&
+          layer.type !== "unit" &&
+          layer.type !== "unparsed"
+        ) {
+          return layer;
+        }
+
+        return i === index
+          ? { ...layer, hidden: layer.hidden ? false : true }
+          : layer;
+      }),
+    });
+  }
+
+  batch.publish();
+};
+
+export const parseTransitionShorthandToLayers = (
+  transition: string
+): LayersValue => {
+  const longhands = expandShorthands([["transition", transition]]);
+
+  const layerTuple: TupleValue = { type: "tuple", value: [] };
+  for (const [hyphenedProperty, value] of longhands) {
+    const longhandProperty = camelCase(hyphenedProperty) as StyleProperty;
+    const longhandValue = parseCssValue(longhandProperty, value);
+
+    if (
+      longhandValue.type === "layers" &&
+      isTransitionLongHandProperty(longhandProperty) &&
+      isValidTransitionValue(longhandValue.value[0])
+    ) {
+      layerTuple.value.push(longhandValue.value[0]);
+    }
+  }
+
+  return {
+    type: "layers",
+    value: [layerTuple],
+  };
 };
